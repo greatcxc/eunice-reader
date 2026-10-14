@@ -144,11 +144,8 @@ const CALLOUTS = [
 function highlight(code, lang) {
   const language = (lang || '').trim().toLowerCase().split(/\s+/)[0];
 
-  // Mermaid 不走高亮，渲染后由后处理交给 mermaid 自己画
-  if (language === 'mermaid') {
-    return `<div class="mr-mermaid" data-mermaid-source>${md.utils.escapeHtml(code)}</div>`;
-  }
-
+  // Mermaid 刻意**不在这里**处理：highlight 的返回值一定会被默认 fence 规则
+  // 裹进 <pre><code>，图表必须跳过这层包装，所以由下面的 fence 规则直接接管。
   const langAttr = language ? ` data-lang="${md.utils.escapeHtml(language)}"` : '';
   return `<pre class="mr-code"${langAttr}><code class="hljs">${md.utils.escapeHtml(code)}</code></pre>`;
 }
@@ -245,6 +242,28 @@ for (const c of CALLOUTS) {
 }
 
 // katex 插件由 ensureRenderers() 在文档出现公式时才挂上（见文件头说明）。
+
+/* Mermaid：围栏直接渲染成块级容器，**不经过** <pre><code>。
+ *
+ * 交给 options.highlight 返回一个 `<div>` 是走不通的：markdown-it 的默认 fence
+ * 规则只在返回值以 `<pre` 开头时才原样采用，否则一律再裹一层
+ * <pre><code class="language-mermaid">。于是块级图表被塞进行内元素 code 里 ——
+ * 嵌套非法、语义上也不是代码，还会继承 pre 的 padding / white-space: pre /
+ * 等宽字体；最明显的一处是导出 PDF：print.css 给 `.markdown-body pre` 加了边框和
+ * 底色，每个图表都会被套上一圈「代码块」的灰框。
+ * 所以这里接管 fence 规则：mermaid 围栏返回裸容器（源码转义后进 DOM，
+ * 画图交给 enhance.js 的 renderMermaid()），其余围栏仍走默认实现。
+ */
+const defaultFence = md.renderer.rules.fence;
+
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const info = (token.info || '').trim().toLowerCase().split(/\s+/)[0];
+  if (info === 'mermaid') {
+    return `<div class="mr-mermaid" data-mermaid-source>${md.utils.escapeHtml(token.content)}</div>\n`;
+  }
+  return defaultFence(tokens, idx, options, env, self);
+};
 
 // 链接：新窗口打开 + 防 tabnabbing；相对路径链接原样保留给 Tauri 解析
 const defaultLinkOpen =

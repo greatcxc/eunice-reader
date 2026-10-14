@@ -101,6 +101,12 @@
     overflow: visible !important;
   }
 
+  /* 图表同理：屏幕上靠横滚看完整的宽图，到纸面上不该被裁，铺开即可
+     （svg 自带 max-width:100%，会自己缩到纸面宽度） */
+  .markdown-body .mr-mermaid {
+    overflow: visible !important;
+  }
+
   .markdown-body pre {
     white-space: pre-wrap !important;
     word-break: break-word !important;

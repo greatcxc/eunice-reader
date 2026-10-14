@@ -35,6 +35,11 @@ const cases = [
   ['行内公式', '公式 $a^2+b^2=c^2$', /class="katex"/],
   ['块级公式', '$$\nE = mc^2\n$$', /class="katex-display"/],
   ['Mermaid 占位', '```mermaid\ngraph TD;\nA-->B;\n```', /data-mermaid-source/],
+  // 图表是块级内容，必须跳过 markdown-it 的 <pre><code> 包装：
+  // 塞进行内 code 里是非法嵌套，还会继承代码块样式（导出 PDF 时 print.css
+  // 会给 `.markdown-body pre` 加边框与底色，每个图表都被套一圈灰框）。
+  ['Mermaid 不被代码块包裹', '```mermaid\ngraph TD;\nA-->B;\n```', (h) => !/<pre|<code/.test(h) && /^<div class="mr-mermaid"/.test(h.trim())],
+  ['Mermaid 源码仍转义', '```mermaid\ngraph TD\nA["<img src=x>"]\n```', /&lt;img src=x&gt;/],
   ['提示块 note', ':::note\n内容\n:::', /mr-callout-note/],
   ['提示块 tip', ':::tip\n内容\n:::', /mr-callout-tip/],
   ['提示块 warning', ':::warning\n内容\n:::', /mr-callout-warning/],

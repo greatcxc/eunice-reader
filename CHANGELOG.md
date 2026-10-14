@@ -8,6 +8,29 @@
 任一变化都会在下次启动重登记一次文件关联，这是预期行为 ——
 只改注册逻辑而不改这个数字，已经装好的机器永远等不到新内容。
 
+## [1.2.2] — 2026-10-14
+
+Mermaid 收尾版。图表（` ```mermaid ` 围栏 → 真 SVG）从 1.1.0 起就支持，
+这一版修的是「它被当成代码块」：结构上、屏幕上看、导出 PDF 时都算。
+
+### 修复
+
+- **图表被裹在 `<pre><code>` 里**：`options.highlight` 返回的 `<div>` 一定会被
+  markdown-it 的默认 fence 规则再裹一层 `<pre><code class="language-mermaid">`
+  —— 只有当返回值以 `<pre` 开头时它才原样采用。于是块级图表被塞进行内元素 `code` 里：
+  HTML 嵌套非法、语义上也不是代码，还继承了 `pre` 的 `padding`、`white-space: pre`
+  与等宽字体。最明显的一处是**导出 PDF**：`print.css` 给 `.markdown-body pre`
+  加了边框和灰底，每个图表都被套上一圈「代码块」的框。
+  现在 `fence` 规则由本项目接管：`mermaid` 围栏直接渲染成块级容器
+  （`.markdown-body > .mr-mermaid`，源码照样先转义再进 DOM），其余围栏仍走默认实现。
+  无头实测：图表容器现在是 `.markdown-body` 的直接子节点，`padding: 0`、无边框、
+  字体跟随正文；普通代码块仍是 `<pre class="mr-code"><code class="hljs">`。
+- **打印时宽图会被裁掉**：`.mr-mermaid` 在纸面上改成 `overflow: visible`，
+  与宽表格同一处理（svg 自带 `max-width: 100%`，会自己缩到纸面宽度）。
+
+`scripts/smoke-test.mjs` 补了两条断言：`mermaid` 围栏的输出不得含 `<pre` / `<code>`，
+且必须以顶层 `<div class="mr-mermaid">` 开头；源码里的 `<` 仍要转义。
+
 ## [1.2.1] — 2026-10-14
 
 1.2.0 三个问题的修复。都是「真机上才暴露」的那一类。
