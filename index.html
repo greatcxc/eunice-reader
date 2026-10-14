@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-tab-layout="top">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown Reader</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- ── 顶栏 ──
+           data-tauri-drag-region：zen 模式会把系统标题栏去掉，此时只能靠这里拖窗口
+           （双击这块区域仍然走系统的最大化/还原）。 -->
+      <header class="titlebar" data-tauri-drag-region>
+        <div class="tb-group tb-left">
+          <button class="ic-btn" id="btn-open" data-tip="打开 · Ctrl+O" aria-label="打开文件"></button>
+          <button class="ic-btn" id="btn-save" data-tip="保存 · Ctrl+S" aria-label="保存"></button>
+          <div class="ic-split">
+            <button class="ic-btn" id="btn-saveas" data-tip="另存为 Markdown · Ctrl+Shift+S" aria-label="另存为"></button>
+            <button class="ic-btn" id="btn-pdf" data-tip="导出 PDF · Ctrl+Shift+E" aria-label="导出 PDF"></button>
+          </div>
+        </div>
+
+        <div class="tb-doc">
+          <span class="doc-title" id="lbl-filename">未打开文件</span>
+          <span class="doc-dirty" id="lbl-dirty" title="有未保存的修改" hidden></span>
+        </div>
+
+        <div class="tb-group tb-right">
+          <div class="seg" role="group" aria-label="视图模式">
+            <button class="seg-btn" id="btn-view-read" data-tip="阅读 · Ctrl+1" aria-label="阅读模式"></button>
+            <button class="seg-btn" id="btn-view-split" data-tip="分栏（源码 + 预览）· Ctrl+2" aria-label="分栏模式"></button>
+            <button class="seg-btn" id="btn-view-edit" data-tip="编辑 · Ctrl+3" aria-label="编辑模式"></button>
+          </div>
+          <span class="tb-gap"></span>
+          <button class="ic-btn" id="btn-zen" data-tip="Zen 模式 · Ctrl+Shift+Z" aria-label="Zen 模式"></button>
+          <button class="ic-btn" id="btn-toggle-outline" data-tip="大纲 · Ctrl+B" aria-label="大纲"></button>
+          <button class="ic-btn" id="btn-theme-quick" data-tip="切换明暗 · Ctrl+Shift+D" aria-label="切换主题"></button>
+          <button class="ic-btn" id="btn-settings" data-tip="设置 · Ctrl+," aria-label="设置"></button>
+        </div>
+      </header>
+
+      <!-- ── 主工作区 ── -->
+      <div class="workspace" id="workspace">
+        <!-- 大纲：全局一个，跟随当前激活的分组 -->
+        <aside class="sidebar" id="pane-outline">
+          <div class="sidebar-head">
+            <span class="sidebar-title">大纲</span>
+            <button class="ic-btn ic-sm" id="btn-outline-close" data-tip="收起大纲" aria-label="收起大纲"></button>
+          </div>
+          <nav class="outline-list" id="outline-list"></nav>
+        </aside>
+
+        <!-- 分组容器：默认 1 个，拖文件到两侧 1/4 时出现第 2 个（分栏） -->
+        <div class="groups" id="groups">
+          <section class="group is-read is-empty" id="group-g1" data-gid="g1">
+            <!-- 顶部 tab 布局：玻璃条压在正文之上，正文从它下面滚过去 -->
+            <div class="tabbar">
+              <div class="tablist"></div>
+              <button class="tab-add" type="button" data-tip="打开文件 · Ctrl+O" aria-label="打开文件"></button>
+            </div>
+
+            <div class="group-body">
+              <!-- 左侧 tab 布局：整列标签 -->
+              <aside class="tabrail" hidden>
+                <div class="tablist"></div>
+                <button class="tab-add" type="button" data-tip="打开文件 · Ctrl+O" aria-label="打开文件"></button>
+              </aside>
+
+              <section class="pane-editor">
+                <div class="editor-host"></div>
+              </section>
+
+              <div class="splitter" role="separator" aria-orientation="vertical" title="拖动调整宽度，双击复位"></div>
+
+              <section class="pane-preview">
+                <article class="markdown-body"></article>
+                <div class="empty-state">
+                  <div class="empty-art"></div>
+                  <h2 class="empty-title">还没有打开文档</h2>
+                  <p class="empty-sub">打开一个 Markdown 文件开始阅读，或直接把文件拖进窗口</p>
+                  <div class="empty-keys">
+                    <span><kbd>Ctrl</kbd><kbd>O</kbd> 打开</span>
+                    <span><kbd>Ctrl</kbd><kbd>,</kbd> 设置</span>
+                    <span><kbd>Ctrl</kbd><kbd>=</kbd> 放大</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ── 状态栏 ── -->
+      <footer class="statusbar">
+        <span id="stat-lines">—</span>
+        <span id="stat-chars"></span>
+        <span id="stat-cursor"></span>
+        <span class="spacer"></span>
+        <!-- 缩放系数：点一下复位 100%，非 100% 时高亮，随时知道自己在哪一档 -->
+        <button
+          class="status-zoom"
+          id="stat-zoom"
+          type="button"
+          data-tip="显示缩放（Ctrl + = / - / 0，或 Ctrl + 滚轮）"
+        >100%</button>
+        <span id="stat-theme"></span>
+        <span class="status-enc" id="stat-enc" hidden></span>
+      </footer>
+    </div>
+
+    <!-- 设置打开时的轻量遮罩：点它关闭抽屉 -->
+    <div class="drawer-scrim" id="drawer-scrim" hidden></div>
+
+    <!-- ── 设置抽屉（右侧，不遮挡文档） ── -->
+    <div class="modal-backdrop" id="settings-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-label="设置">
+        <div class="modal-head">
+          <span class="modal-title">设置</span>
+          <span class="spacer"></span>
+          <button class="ic-btn" id="btn-settings-close" data-tip="关闭 · Esc" aria-label="关闭设置"></button>
+        </div>
+        <div class="modal-body" id="settings-body"></div>
+      </div>
+    </div>
+
+    <!-- ── 拖放落点提示 ──
+         三块区域：左 1/4 分栏到左侧、中间开新标签、右 1/4 分栏到右侧。
+         鼠标靠近窗口边缘时才出现，颜色深浅表示「现在是哪一档」。 -->
+    <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
+      <div class="dz dz-left" data-zone="left"><span class="dz-label">在左侧分栏打开</span></div>
+      <div class="dz dz-mid" data-zone="tab"><span class="dz-label">在新标签页打开</span></div>
+      <div class="dz dz-right" data-zone="right"><span class="dz-label">在右侧分栏打开</span></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

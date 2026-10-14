@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>settings harness</title>
+<link rel="stylesheet" href="/src/styles/app.css" />
+<link rel="stylesheet" href="/src/styles/zh-optimize.css" />
+<link rel="stylesheet" href="/src/styles/theme.css" />
+<script>
+  // 让 tauri API / plugin 模块在纯浏览器里能安全 import
+  window.__TAURI_INTERNALS__ = {
+    invoke: () => Promise.resolve(null),
+    transformCallback: () => 1,
+    metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+  };
+  window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
+  try { if (!localStorage.getItem('__h')) { localStorage.setItem('__h', '1'); } } catch (e) {}
+</script>
+<script type="importmap">
+{
+  "imports": {
+    "highlight.js/lib/common": "data:text/javascript,export default {getLanguage:()=>false,highlight:()=>({value:''}),highlightAuto:()=>({value:''})}",
+    "markdown-it": "data:text/javascript,export default class{use(){return this}render(){return ''}renderInline(){return ''}}",
+    "markdown-it-task-lists": "data:text/javascript,export default function(){}",
+    "markdown-it-footnote": "data:text/javascript,export default function(){}",
+    "markdown-it-emoji": "data:text/javascript,export const full=function(){}",
+    "markdown-it-anchor": "data:text/javascript,const f=function(){};f.permalink={linkInsideHeader:()=>({})};export default f",
+    "markdown-it-container": "data:text/javascript,export default function(){}",
+    "@vscode/markdown-it-katex": "data:text/javascript,export default function(){}",
+    "mermaid": "data:text/javascript,export default {initialize(){},render:async()=>({svg:''})}"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app" style="position:relative">
+  <div class="workspace is-read is-empty" id="workspace"></div>
+</div>
+<div class="drawer-scrim" id="drawer-scrim" hidden></div>
+<div class="modal-backdrop" id="settings-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="设置">
+    <div class="modal-head">
+      <span class="modal-title">设置</span>
+      <span class="modal-sub">改完立刻能看到</span>
+      <span class="spacer"></span>
+      <button class="ic-btn" id="btn-settings-close" aria-label="关闭设置"></button>
+    </div>
+    <div class="modal-body" id="settings-body"></div>
+  </div>
+</div>
+
+<script type="module">
+  const { renderSettings } = await import('/src/ui/settings.js');
+  const { loadSettings } = await import('/src/lib/store.js');
+  const { icon } = await import('/src/ui/icons.js');
+  document.getElementById('btn-settings-close').innerHTML = icon('x', 16);
+
+  const q = new URLSearchParams(location.search);
+
+  // 必须在 renderSettings 之前写入，否则「最近打开」分区不会渲染
+  if (q.get('recent') && !q.get('seeded')) {
+    try {
+      localStorage.setItem('markdown-reader/settings/v1', JSON.stringify({
+        pinnedFiles: ['D:\\Work\\规范\\Markdown 写作规范.md'],
+        recentFiles: [
+          'D:\\Documents\\2026 春季欧洲市场拓展方案.md',
+          'D:\\Notes\\周报-第 41 周.md',
+          'D:\\Notes\\读书笔记\\人月神话.md',
+        ],
+        zoom: 1.25,
+        autoSave: true,
+      }));
+    } catch (e) {}
+    location.replace(location.pathname + '?seeded=1&probe=1');
+  }
+
+  // settings 模块内部持有 state，必须显式 load 一次才会读到 localStorage
+  loadSettings();
+
+  // 假的状态：让「文件关联」分区按真实样子渲染（真机上是 Rust 读注册表）
+  const fakeAssoc = {
+    progId: 'Markdown Document',
+    displayName: 'Markdown 文档',
+    isDefault: true,
+    userChoice: true,
+    iconOk: true,
+  };
+
+  renderSettings(
+    document.getElementById('settings-body'),
+    () => {},
+    {
+      onOpenRecent: () => {},
+      onOpenFile: () => {},
+      onPin: () => {},
+      onUnpin: () => {},
+      onRemoveRecent: () => {},
+      onClearRecent: () => {},
+      onZoom: () => {},
+      readAssocStatus: () => Promise.resolve(fakeAssoc),
+      fixAssociation: () => Promise.resolve(fakeAssoc),
+      openDefaultAppsSettings: () => Promise.resolve(true),
+    },
+  );
+
+  // 直接打开抽屉（绕过按钮），方便截图
+  document.body.classList.add('settings-open');
+  document.getElementById('settings-modal').hidden = false;
+  document.getElementById('drawer-scrim').hidden = false;
+
+  // ?dark=1 走深色界面（验证深色底抬高后的观感）
+  if (q.get('dark')) {
+    document.documentElement.dataset.theme = 'dark';
+    document.documentElement.dataset.glass = 'normal';
+  }
+
+  // ?scroll=N 把抽屉正文滚到指定位置，便于截取下半部分
+  if (q.get('scroll')) {
+    const body = document.getElementById('settings-body');
+    body.scrollTop = Number(q.get('scroll'));
+  }
+
+  // ?fgrid=N 滚字体网格内部，查看新增字体卡片
+  if (q.get('fgrid')) {
+    const g = document.querySelector('.font-grid');
+    if (g) g.scrollTop = Number(q.get('fgrid'));
+  }
+
+  // ?probe=1 时把实测尺寸写进标题，用 --dump-dom 读回来核对布局。
+  // 等一拍再量：文件关联状态是异步读回来的，不等的话只会量到「正在检查…」
+  if (q.get('probe')) {
+    await new Promise((r) => setTimeout(r, 120));
+    const g = document.querySelector('.doc-grid');
+    const c = document.querySelector('.doc-card');
+    const s = document.querySelector('.sec');
+    const sl = document.querySelector('.slider input');
+    const bm = document.querySelector('.box-mark');
+    const chips = document.querySelector('.chip-tab.is-on');
+    const cs = (el, p) => (el ? getComputedStyle(el)[p] : 'n/a');
+    document.title = [
+      'drawer=' + Math.round(document.querySelector('.modal').getBoundingClientRect().width),
+      'gridW=' + Math.round(g.getBoundingClientRect().width),
+      'tracks=' + cs(g, 'gridTemplateColumns').split(' ').length,
+      'cardW=' + Math.round(c.getBoundingClientRect().width),
+      'fontTracks=' + cs(document.querySelector('.font-grid'), 'gridTemplateColumns').split(' ').length,
+      'sliderPct=' + (sl ? sl.style.getPropertyValue('--pct') : 'n/a'),
+      'boxMark=' + (bm ? Math.round(bm.getBoundingClientRect().width) : 'n/a'),
+      'chipOn=' + cs(chips, 'backgroundColor'),
+      'sections=' + document.querySelectorAll('.sec').length,
+      'rows=' + document.querySelectorAll('.row').length,
+      'boxes=' + document.querySelectorAll('.box').length,
+      'recent=' + document.querySelectorAll('.recent-item').length,
+      // 最近打开置顶 + 固定/清除
+      'firstSec=' + (document.querySelector('.sec .sec-title') || {}).textContent,
+      'pinned=' + document.querySelectorAll('.recent-row.is-pinned').length,
+      'rpin=' + document.querySelectorAll('.recent-item .rpin').length,
+      'rbtn=' + document.querySelectorAll('.recent-item .rbtn, .ractions .rbtn').length,
+      'zoomRow=' + (document.querySelector('.row-label') || {}).textContent,
+      'zoomVal=' + (document.querySelector('.row .row-value') || {}).textContent,
+      'assocState=' + ((document.querySelector('.assoc-state') || {}).textContent || '').slice(0, 40),
+      'htmlTheme=' + document.documentElement.dataset.theme,
+      'glass=' + document.documentElement.dataset.glass,
+      'bodyBg=' + cs(document.body, 'backgroundColor'),
+      'chrome=' + cs(document.documentElement, '--ui-chrome'),
+      'fg=' + cs(document.documentElement, '--fg'),
+      'scrollTop=' + Math.round(document.getElementById('settings-body').scrollTop),
+      'boxChecked=' + [...document.querySelectorAll('.box input')].map((b) => (b.checked ? 1 : 0)).join(''),
+      'selValue=' + (document.querySelector('.sel select') || {}).value,
+      'q=' + location.search,
+    ].join(' | ');
+  }
+  window.__ready = true;
+</script>
+</body>
+</html>

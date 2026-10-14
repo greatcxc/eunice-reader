@@ -1,0 +1,371 @@
+/*
+ * 中文排版优化层
+ * ---------------------------------------------------------------
+ * github-markdown-css 的行高、字距、段间距都是按英文排版调的，
+ * 直接渲染中文会行距过密、字挤、段落粘连。
+ *
+ * 原则：不改写它的一条规则，只在其后叠加中文场景需要的调整，
+ *      并用 :where() 保持零优先级，方便用户以后自行覆盖。
+ */
+
+/* ---------- 字体栈 ---------- */
+
+.markdown-body {
+  /* 正文字体：字体预设会覆盖这个变量（西文在前、中文在后，按字符分别回退） */
+  font-family: var(
+    --mr-font-body,
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Noto Sans CJK SC",
+    "Source Han Sans SC",
+    "Noto Sans SC",
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif
+  );
+
+  /* 中文字距略微放开，0.02em 是可读性与密度的平衡点 */
+  letter-spacing: 0.02em;
+
+  /* 中文正文行高由设置项控制，这里给 1.9 作为兜底 */
+  line-height: 1.9;
+
+  /* 标点挤压 + 中西文自动间距，Chromium 123+ / WebView2 支持 */
+  text-spacing-trim: space-first;
+}
+
+@supports not (text-spacing-trim: space-first) {
+  .markdown-body {
+    text-autospace: normal;
+  }
+}
+
+/* ---------- 标题 ---------- */
+
+.markdown-body :where(h1, h2, h3, h4, h5, h6) {
+  /* 标题不参与段落两端对齐，避免最后一字被拉开 */
+  text-align: start;
+  /* 中文标题字重普遍偏细，用 600 而不是 700 才够清晰 */
+  font-weight: 600;
+  /* 禁止标题内部断行导致「单字成行」 */
+  word-break: keep-all;
+  /* 中文没有词边界，靠 letter-spacing 保持呼吸感 */
+  letter-spacing: 0.01em;
+}
+
+.markdown-body :where(h1) { margin-top: 1.6em; margin-bottom: 0.8em; }
+.markdown-body :where(h2) {
+  margin-top: 2em;
+  margin-bottom: 0.9em;
+  /* GitHub 原生样式的 h2 底部边框在中文文档里显得过重，改为更轻的分隔 */
+  padding-bottom: 0.3em;
+  border-bottom-color: color-mix(in srgb, currentColor 16%, transparent);
+}
+.markdown-body :where(h3) { margin-top: 1.6em; margin-bottom: 0.7em; }
+
+/* ---------- 标题锚点 ----------
+   标题上不再渲染 permalink「#」（见 markdown/index.js 里的说明），
+   只保留 id 供大纲侧栏与文档内跳转使用。 */
+
+/* ---------- 段落 ---------- */
+
+.markdown-body > p {
+  margin-top: 0;
+  margin-bottom: 1em;
+  /* 中文两端对齐更整齐；但字间距过大会拉稀，故配合 text-align-last 保持末行自然 */
+  text-align: justify;
+  text-align-last: start;
+}
+
+/* 中西文混排：避免 `1个` `A包` 这类挤在一起 */
+.markdown-body :where(p, li, td, th, blockquote) {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* ---------- 列表 ---------- */
+
+.markdown-body :where(ul, ol) {
+  /* 中文列表缩进用 2em，比英文的 2ch 更符合阅读习惯 */
+  padding-inline-start: 2em;
+}
+
+.markdown-body li {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+
+.markdown-body li > p {
+  margin-bottom: 0.5em;
+}
+
+/* 任务列表：让复选框在中英混排时对齐更整齐 */
+.markdown-body li:has(> input[type="checkbox"]) {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.markdown-body input[type="checkbox"] {
+  margin-inline-end: 0.5em;
+  vertical-align: -0.1em;
+  accent-color: currentColor;
+  width: 1em;
+  height: 1em;
+}
+
+/* ---------- 引用 ---------- */
+
+.markdown-body blockquote {
+  margin-block: 1.2em;
+  padding: 0.6em 1em;
+  /* 左侧竖线用更淡的颜色，中文长引用时不刺眼 */
+  border-inline-start-width: 0.25em;
+}
+
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- 链接 ---------- */
+
+.markdown-body a {
+  /* 中文正文里的链接不加下划线会看不清边界，但纯下划线又太吵 */
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  transition: border-color 0.15s ease;
+}
+
+.markdown-body a:hover {
+  border-bottom-color: currentColor;
+}
+
+.markdown-body a .mr-external-mark {
+  font-size: 0.75em;
+  opacity: 0.55;
+  margin-inline-start: 0.2em;
+  vertical-align: 0.15em;
+}
+
+/* ---------- 代码 ---------- */
+
+.markdown-body code,
+.markdown-body pre,
+.markdown-body .mr-code {
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas,
+    "SF Mono", "Menlo", "Microsoft YaHei Mono", "Noto Sans Mono CJK SC",
+    "Courier New", monospace;
+  /* 等宽字体里中英文混排时字号要略小才协调 */
+  letter-spacing: 0;
+}
+
+/* 行内代码：中文语境下 padding 稍大一点才不贴字 */
+.markdown-body :not(pre) > code {
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+}
+
+.markdown-body pre {
+  /* 中文注释在代码块里同样需要更宽松的行距 */
+  line-height: 1.65;
+  padding: 1em 1.15em;
+  overflow: auto;
+}
+
+/* ---------- 表格 ---------- */
+
+.markdown-body table {
+  width: 100%;
+  /* 中文表格容易撑破容器，强制 table-layout 让列宽可预测 */
+  table-layout: auto;
+  margin-block: 1.3em;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 0.6em 0.85em;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  line-height: 1.7;
+}
+
+.markdown-body th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- 水平线 ---------- */
+
+.markdown-body hr {
+  margin-block: 2.2em;
+  border-color: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+/* ---------- 图片 ---------- */
+
+.markdown-body img {
+  border-radius: 6px;
+  /* 中文文档里图片常常配说明文字，图片与图注之间需要更多呼吸 */
+  margin-block: 0.6em 0.9em;
+}
+
+.markdown-body img.is-broken {
+  /* 图片路径写错时给出可见提示，而不是碎图图标 */
+  min-height: 3em;
+  border: 1px dashed color-mix(in srgb, currentColor 30%, transparent);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 8px,
+    color-mix(in srgb, currentColor 6%, transparent) 8px,
+    color-mix(in srgb, currentColor 6%, transparent) 16px
+  );
+}
+
+/* ---------- 脚注 ---------- */
+
+.markdown-body .footnotes {
+  margin-top: 3em;
+  padding-top: 1em;
+  font-size: 0.92em;
+}
+
+.markdown-body .footnote-ref {
+  border-bottom: none;
+  padding: 0 0.15em;
+}
+
+/* ---------- 提示块（:::note 语法） ---------- */
+
+.markdown-body .mr-callout {
+  margin-block: 1.3em;
+  padding: 0.9em 1.1em;
+  border-inline-start: 4px solid var(--mr-callout-color, currentColor);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mr-callout-color, currentColor) 8%, transparent);
+}
+
+.markdown-body .mr-callout > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body .mr-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-weight: 600;
+  margin-bottom: 0.4em;
+  /* 只有标题着色，正文保持正常色，否则整段字都会变色 */
+  color: var(--mr-callout-color, currentColor);
+}
+
+/* 各类提示块的强调色，明暗主题各自的取值由 app.css 定义 */
+.markdown-body .mr-callout-note { --mr-callout-color: var(--c-note); }
+.markdown-body .mr-callout-tip { --mr-callout-color: var(--c-tip); }
+.markdown-body .mr-callout-important { --mr-callout-color: var(--c-important); }
+.markdown-body .mr-callout-warning { --mr-callout-color: var(--c-warning); }
+.markdown-body .mr-callout-caution { --mr-callout-color: var(--c-caution); }
+
+/* ---------- 公式 ---------- */
+
+/* KaTeX 不内置中文字体，数学式里的中文必须显式 fallback */
+.markdown-body .katex {
+  font-size: 1.05em;
+}
+
+.markdown-body .katex .mord.text {
+  font-family: inherit;
+}
+
+/* ---------- Mermaid ---------- */
+
+.markdown-body .mr-mermaid {
+  margin-block: 1.4em;
+  text-align: center;
+  overflow: auto;
+}
+
+.markdown-body .mr-mermaid svg {
+  max-width: 100%;
+  height: auto;
+  /* 让图里的中文用正文同一套字体 */
+  font-family: inherit;
+}
+
+.markdown-body .mr-mermaid.is-error {
+  text-align: start;
+}
+
+.markdown-body .mr-mermaid-error {
+  margin: 0;
+  color: var(--mr-callout-caution, #cf222e);
+  white-space: pre-wrap;
+}
+
+/* ---------- 表格容器 ---------- */
+
+.markdown-body .mr-table-wrap {
+  overflow-x: auto;
+  margin-block: 1.3em;
+  /* 滚动条在 WebView2 里默认不显示，这里强制常显，提示用户可以横滑 */
+  scrollbar-width: thin;
+}
+
+.markdown-body .mr-table-wrap > table {
+  margin-block: 0;
+}
+
+/* ---------- 代码块装饰 ---------- */
+
+.markdown-body pre.mr-code {
+  position: relative;
+}
+
+.markdown-body .mr-code-lang {
+  position: absolute;
+  top: 0.45em;
+  inset-inline-start: 0.8em;
+  font-size: 0.75em;
+  opacity: 0.5;
+  font-family: inherit;
+  user-select: none;
+  pointer-events: none;
+}
+
+.markdown-body .mr-copy {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.markdown-body .mr-copy:hover {
+  background: color-mix(in srgb, currentColor 13%, transparent);
+}
+
+.markdown-body pre.mr-code:hover .mr-copy,
+.markdown-body .mr-copy:focus-visible {
+  opacity: 1;
+}
+
+.markdown-body .mr-copy.is-done {
+  opacity: 1;
+  color: var(--ok, #1a7f37);
+  border-color: currentColor;
+}

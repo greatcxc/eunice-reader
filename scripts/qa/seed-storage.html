@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><title>seed</title></head>
+<body>
+<script>
+  // 只负责写入 localStorage 供 harness 读取，避免 harness 自身做 location.replace
+  // （重定向会让 headless 截图停在旧页面上，拍出重复的图）
+  try {
+    localStorage.setItem('markdown-reader/settings/v1', JSON.stringify({
+      pinnedFiles: ['D:\\Work\\规范\\Markdown 写作规范.md'],
+      recentFiles: [
+        'D:\\Documents\\2026 春季欧洲市场拓展方案.md',
+        'D:\\Notes\\周报-第 41 周.md',
+        'D:\\Notes\\读书笔记\\人月神话.md',
+      ],
+      zoom: 1.25,
+      autoSave: true,
+      docTheme: 'plain',
+    }));
+    document.title = 'SEEDED';
+  } catch (e) {
+    document.title = 'SEED_FAIL:' + e.message;
+  }
+</script>
+</body></html>

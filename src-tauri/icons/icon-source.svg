@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    Eunice Reader 应用图标
+    纯几何扁平矢量，保证对称与 16px 下的可辨识度（AI 生成稿的腮红位置不对称，
+    这里按同样的配色与造型精确重绘）。
+  -->
+  <!-- 底：靛蓝圆 -->
+  <circle cx="256" cy="256" r="256" fill="#4F46E5" />
+
+  <!-- 头发：bob 短发，深藏青 -->
+  <ellipse cx="256" cy="272" rx="182" ry="186" fill="#1E1B4B" />
+
+  <!-- 脸：奶油色 -->
+  <ellipse cx="256" cy="296" rx="139" ry="146" fill="#FFF4E4" />
+
+  <!-- 刘海：中间厚、两边薄的 bob 弧形，必须完全盖住脸的顶部，否则会露出月牙 -->
+  <path d="M108 214 Q256 80 404 214 L404 250 Q256 254 108 250 Z" fill="#1E1B4B" />
+  <!-- 两侧鬓角下垂 -->
+  <path d="M108 214 Q120 300 132 330 L108 300 Z" fill="#1E1B4B" />
+  <path d="M404 214 Q392 300 380 330 L404 300 Z" fill="#1E1B4B" />
+
+  <!-- 闭着的眼睛：对称的两段弧线 -->
+  <path d="M192 292 Q212 316 232 292" stroke="#1E1B4B" stroke-width="13" stroke-linecap="round" fill="none" />
+  <path d="M280 292 Q300 316 320 292" stroke="#1E1B4B" stroke-width="13" stroke-linecap="round" fill="none" />
+
+  <!-- 腮红：严格左右对称 -->
+  <ellipse cx="184" cy="336" rx="27" ry="20" fill="#FB7185" opacity="0.92" />
+  <ellipse cx="328" cy="336" rx="27" ry="20" fill="#FB7185" opacity="0.92" />
+</svg>

@@ -1,0 +1,21 @@
+# ── 依赖与构建产物 ──
+node_modules/
+dist/
+
+# Tauri
+src-tauri/target/
+# tauri-build 每次构建都会重新生成，不入库（IDE 的 schema 提示由它提供）
+src-tauri/gen/schemas/
+
+# ── 开发期临时文件 ──
+# QA 工装要先复制到根目录才能被 Vite 提供（见 scripts/qa/README.md），用完即删
+qa-*.html
+.tmp-*
+*.log
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

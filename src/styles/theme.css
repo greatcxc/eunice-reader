@@ -1,0 +1,514 @@
+/*
+ * 正文主题
+ * ----------------------------------------------------------------
+ * 一款主题 = 一整套文档视觉。纸面、正文、标题、引用、表格、代码块底色，
+ * 连同代码/数字的着色，都属于同一个色系。
+ *
+ * 这里刻意不用任何外部配色库（含 highlight.js 的 82 套代码主题）：
+ * 对一个用来读方案和提案的工具来说，「挑代码配色」是程序员需求，不是文档需求。
+ * 语法着色由下面的 --syn-* 变量随主题一起给出，用户不必也不会去关心。
+ *
+ * 未被逐主题覆盖的中间色（表格边框、斑马纹等）一律从纸面与正文色派生，
+ * 保证换任何一款主题都不会出现「一半是新配色、一半是旧配色」的割裂感。
+ */
+
+:root {
+  /* 纸面与文字 */
+  --paper: #ffffff;
+  --ink: #1f2328;
+  --ink-soft: #5b6570;
+  --rule: #dfe3e8;
+
+  /* 标题层级 */
+  --head-1: #14191f;
+  --head-2: #1f2933;
+
+  /* 强调 */
+  --accent: #9a5b2c;
+  --accent-weak: color-mix(in srgb, var(--accent) 12%, transparent);
+
+  /* 引用 */
+  --quote-bg: #f7f4ee;
+  --quote-bar: #c8a882;
+  --quote-ink: #5f564a;
+
+  /* 代码块 */
+  --code-bg: #f6f3ed;
+  --code-rule: #e6dfd2;
+  --code-inline-bg: #f2eee5;
+  --code-inline-ink: #96502a;
+
+  /* 语法着色（6 色足够，刻意克制） */
+  --syn-key: #a03c28;
+  --syn-str: #4a7a3e;
+  --syn-num: #8a5a1e;
+  --syn-fn: #4b5bb5;
+  --syn-cmt: #9a9285;
+  --syn-var: #6b4f8f;
+}
+
+/* ══════════════ 素白 ══════════════ */
+[data-theme-doc='plain'] {
+  --paper: #ffffff;
+  --ink: #1f2328;
+  --ink-soft: #5b6570;
+  --rule: #dfe3e8;
+  --head-1: #14191f;
+  --head-2: #1f2933;
+  --accent: #8a5524;
+  --quote-bg: #f7f8f9;
+  --quote-bar: #b9c0c7;
+  --quote-ink: #4e565e;
+  --code-bg: #f7f8fa;
+  --code-rule: #e3e7eb;
+  --code-inline-bg: #f0f2f5;
+  --code-inline-ink: #a02f38;
+  --syn-key: #a6264d;
+  --syn-str: #3f7a44;
+  --syn-num: #986801;
+  --syn-fn: #3d63b8;
+  --syn-cmt: #8b949e;
+  --syn-var: #6b4f8f;
+}
+
+/* ══════════════ 宣纸 ══════════════ */
+[data-theme-doc='ricepaper'] {
+  --paper: #f9f5ec;
+  --ink: #35302a;
+  --ink-soft: #6b6258;
+  --rule: #e2d9c8;
+  --head-1: #2a251f;
+  --head-2: #4a3f33;
+  --accent: #b04a30;
+  --quote-bg: #f2ebdd;
+  --quote-bar: #c9876a;
+  --quote-ink: #6a5c4e;
+  --code-bg: #f2ebdc;
+  --code-rule: #e0d4bf;
+  --code-inline-bg: #ece2ce;
+  --code-inline-ink: #a5421f;
+  --syn-key: #b0402c;
+  --syn-str: #5c7a42;
+  --syn-num: #9a6a1c;
+  --syn-fn: #4a5aa8;
+  --syn-cmt: #a3977f;
+  --syn-var: #7a4f80;
+}
+
+/* ══════════════ 暖石 ══════════════ */
+[data-theme-doc='warmstone'] {
+  --paper: #f6f1e7;
+  --ink: #38322a;
+  --ink-soft: #6d6459;
+  --rule: #e0d7c7;
+  --head-1: #2c271f;
+  --head-2: #4c4337;
+  --accent: #8d5031;
+  --quote-bg: #f0e8da;
+  --quote-bar: #c3a17c;
+  --quote-ink: #63594c;
+  --code-bg: #f0e8d9;
+  --code-rule: #ded2bc;
+  --code-inline-bg: #ebe1cf;
+  --code-inline-ink: #8d3f22;
+  --syn-key: #9d4527;
+  --syn-str: #55703f;
+  --syn-num: #96601c;
+  --syn-fn: #4c5499;
+  --syn-cmt: #9d9484;
+  --syn-var: #744c78;
+}
+
+/* ══════════════ 花瓣 ══════════════ */
+[data-theme-doc='petal'] {
+  --paper: #fdf5f6;
+  --ink: #43353a;
+  --ink-soft: #7c6870;
+  --rule: #eddcdf;
+  --head-1: #362930;
+  --head-2: #5c4550;
+  --accent: #b8556e;
+  --quote-bg: #fbecef;
+  --quote-bar: #e0a2b2;
+  --quote-ink: #71585f;
+  --code-bg: #fbebef;
+  --code-rule: #eecdd6;
+  --code-inline-bg: #f6e2e7;
+  --code-inline-ink: #a8445c;
+  --syn-key: #b04a66;
+  --syn-str: #5f7a52;
+  --syn-num: #9c6324;
+  --syn-fn: #7a5bab;
+  --syn-cmt: #ab929a;
+  --syn-var: #9c4a86;
+}
+
+/* ══════════════ 草木 ══════════════ */
+[data-theme-doc='verdant'] {
+  --paper: #f3f7f0;
+  --ink: #313b2e;
+  --ink-soft: #62705b;
+  --rule: #d7e0d0;
+  --head-1: #26301f;
+  --head-2: #46523d;
+  --accent: #4d7d45;
+  --quote-bg: #eaf1e5;
+  --quote-bar: #a3bb98;
+  --quote-ink: #57654e;
+  --code-bg: #eaf1e4;
+  --code-rule: #d1ddc9;
+  --code-inline-bg: #e2ebdc;
+  --code-inline-ink: #386b33;
+  --syn-key: #3f7a3a;
+  --syn-str: #6b7a2e;
+  --syn-num: #96681f;
+  --syn-fn: #3d6b9c;
+  --syn-cmt: #94a18b;
+  --syn-var: #6a4a8c;
+}
+
+/* ══════════════ 麦穗 ══════════════ */
+[data-theme-doc='wheat'] {
+  --paper: #fbf7ec;
+  --ink: #3d382c;
+  --ink-soft: #756d5c;
+  --rule: #e6ddc7;
+  --head-1: #302c22;
+  --head-2: #554d3c;
+  --accent: #96702a;
+  --quote-bg: #f6efdd;
+  --quote-bar: #cfb179;
+  --quote-ink: #665d4b;
+  --code-bg: #f6efdd;
+  --code-rule: #e2d6bb;
+  --code-inline-bg: #efe6cf;
+  --code-inline-ink: #8a5f1c;
+  --syn-key: #9c5a22;
+  --syn-str: #5e7a35;
+  --syn-num: #8f6410;
+  --syn-fn: #4a5a95;
+  --syn-cmt: #a2977f;
+  --syn-var: #71518a;
+}
+
+/* ══════════════ 夜阑 ══════════════ */
+[data-theme-doc='nightfall'] {
+  --paper: #1c1f26;
+  --ink: #d3d8e0;
+  --ink-soft: #949da9;
+  --rule: #2b3038;
+  --head-1: #f0f3f8;
+  --head-2: #dfe4ec;
+  --accent: #8fa8d8;
+  --quote-bg: #1e222a;
+  --quote-bar: #3f4a5a;
+  --quote-ink: #a8b2c0;
+  --code-bg: #1d2129;
+  --code-rule: #2d333c;
+  --code-inline-bg: #262c36;
+  --code-inline-ink: #dba08c;
+  --syn-key: #cf8fa0;
+  --syn-str: #8fb894;
+  --syn-num: #d2a866;
+  --syn-fn: #8aa8e0;
+  --syn-cmt: #6f7885;
+  --syn-var: #b39ad6;
+}
+
+/* ══════════════ 墨 ══════════════ */
+[data-theme-doc='inkstone'] {
+  --paper: #17171b;
+  --ink: #dcdcdd;
+  --ink-soft: #8d8d92;
+  --rule: #26262a;
+  --head-1: #f6f6f7;
+  --head-2: #e6e6e7;
+  --accent: #b8b2a6;
+  --quote-bg: #18181b;
+  --quote-bar: #3a3a40;
+  --quote-ink: #ababaf;
+  --code-bg: #171719;
+  --code-rule: #29292d;
+  --code-inline-bg: #222225;
+  --code-inline-ink: #d9a08f;
+  --syn-key: #d2929a;
+  --syn-str: #9bb894;
+  --syn-num: #d4ae72;
+  --syn-fn: #9fb0d8;
+  --syn-cmt: #6a6a70;
+  --syn-var: #b9a2d4;
+}
+
+/* ══════════════ 琥珀 ══════════════ */
+[data-theme-doc='amber'] {
+  --paper: #1c1713;
+  --ink: #ded5c8;
+  --ink-soft: #9a8d7c;
+  --rule: #302822;
+  --head-1: #f4ece0;
+  --head-2: #e8dccb;
+  --accent: #d9a35c;
+  --quote-bg: #241d16;
+  --quote-bar: #4d3d2a;
+  --quote-ink: #b3a48f;
+  --code-bg: #221b14;
+  --code-rule: #352b20;
+  --code-inline-bg: #2c2318;
+  --code-inline-ink: #e0a882;
+  --syn-key: #e09a72;
+  --syn-str: #a3bb85;
+  --syn-num: #d9b06a;
+  --syn-fn: #b09ad0;
+  --syn-cmt: #7d6f5e;
+  --syn-var: #c9a074;
+}
+
+/* ══════════════ 青金 ══════════════ */
+[data-theme-doc='lapis'] {
+  --paper: #131822;
+  --ink: #d0d6e2;
+  --ink-soft: #8b95a8;
+  --rule: #232a37;
+  --head-1: #eef2f9;
+  --head-2: #dbe2ee;
+  --accent: #7d9fd8;
+  --quote-bg: #191f2b;
+  --quote-bar: #33415a;
+  --quote-ink: #a3aec2;
+  --code-bg: #181e29;
+  --code-rule: #262e3c;
+  --code-inline-bg: #212836;
+  --code-inline-ink: #d49a92;
+  --syn-key: #cf8b98;
+  --syn-str: #85b595;
+  --syn-num: #d0a566;
+  --syn-fn: #86a8e2;
+  --syn-cmt: #687385;
+  --syn-var: #ad98d8;
+}
+
+/* ══════════════ 鼠尾草 ══════════════ */
+[data-theme-doc='sage'] {
+  --paper: #161c18;
+  --ink: #d0dbd2;
+  --ink-soft: #8d9c90;
+  --rule: #252e27;
+  --head-1: #eaf3ec;
+  --head-2: #d8e4da;
+  --accent: #8fbfa0;
+  --quote-bg: #1c241e;
+  --quote-bar: #35473b;
+  --quote-ink: #a6b7aa;
+  --code-bg: #1a221c;
+  --code-rule: #29332b;
+  --code-inline-bg: #232d25;
+  --code-inline-ink: #d3a08e;
+  --syn-key: #cf97a0;
+  --syn-str: #8fbb96;
+  --syn-num: #cfa768;
+  --syn-fn: #8aa9d8;
+  --syn-cmt: #69786c;
+  --syn-var: #a894cf;
+}
+
+/* ══════════════ 涟漪 ══════════════ */
+[data-theme-doc='ripple'] {
+  --paper: #111a1c;
+  --ink: #ccd9d9;
+  --ink-soft: #859797;
+  --rule: #1f2c2e;
+  --head-1: #e6f0f0;
+  --head-2: #d2e0e0;
+  --accent: #78b8b4;
+  --quote-bg: #162326;
+  --quote-bar: #2c4447;
+  --quote-ink: #a1b6b6;
+  --code-bg: #152022;
+  --code-rule: #223033;
+  --code-inline-bg: #1d2b2d;
+  --code-inline-ink: #d09a90;
+  --syn-key: #cf9490;
+  --syn-str: #82b7a6;
+  --syn-num: #c8a669;
+  --syn-fn: #82a8c4;
+  --syn-cmt: #647a7a;
+  --syn-var: #9d96cd;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ *   以下为文档元素的实际取色
+ * ══════════════════════════════════════════════════════════════ */
+
+/* 纸面铺满整个预览区，而不是只铺正文那一栏。
+   正文本身有最大行宽（--mr-content-width），若把背景挂在 .markdown-body 上，
+   900px 之外就会漏出界面底色，两侧各留一条白边 —— 看着像没做完。
+   真正的「纸」是预览区，正文只是纸上排的字。 */
+.pane-preview {
+  background: var(--paper);
+}
+
+.markdown-body {
+  color: var(--ink);
+  background: transparent;
+}
+
+.markdown-body :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--head-1);
+  font-weight: 600;
+}
+
+.markdown-body :where(h2) {
+  color: var(--head-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.markdown-body :where(a) {
+  color: var(--accent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.markdown-body :where(a):hover {
+  border-bottom-color: var(--accent);
+}
+
+.markdown-body :where(hr) {
+  border-color: var(--rule);
+  background-color: var(--rule);
+}
+
+.markdown-body :where(blockquote) {
+  color: var(--quote-ink);
+  background: var(--quote-bg);
+  border-inline-start-color: var(--quote-bar);
+}
+
+.markdown-body :where(blockquote) :where(a) {
+  color: var(--accent);
+}
+
+.markdown-body :where(mark) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--ink);
+}
+
+.markdown-body :where(table) th,
+.markdown-body :where(table) td {
+  border-color: var(--rule);
+}
+
+.markdown-body :where(table) tr {
+  background-color: transparent;
+}
+
+.markdown-body :where(table) tr:nth-child(2n) {
+  background-color: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.markdown-body :where(table) thead tr {
+  background-color: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.markdown-body :where(table) :where(tbody tr:hover) {
+  background-color: var(--accent-weak);
+}
+
+.markdown-body :where(img) {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.markdown-body :where(img.is-broken) {
+  border-color: var(--rule);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 8px,
+    color-mix(in srgb, var(--ink) 7%, transparent) 8px,
+    color-mix(in srgb, var(--ink) 7%, transparent) 16px
+  );
+}
+
+.markdown-body :not(pre) > code {
+  background-color: var(--code-inline-bg);
+  color: var(--code-inline-ink);
+}
+
+.markdown-body pre,
+.markdown-body pre.mr-code {
+  background-color: var(--code-bg);
+  border: 1px solid var(--code-rule);
+  color: var(--ink);
+}
+
+/* 语法着色：随主题走的 6 色，不引入任何外部配色库 */
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-doctag,
+.markdown-body .hljs-name {
+  color: var(--syn-key);
+}
+
+.markdown-body .hljs-string,
+.markdown-body .hljs-regexp,
+.markdown-body .hljs-addition,
+.markdown-body .hljs-meta-string {
+  color: var(--syn-str);
+}
+
+.markdown-body .hljs-number,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet {
+  color: var(--syn-num);
+}
+
+.markdown-body .hljs-title,
+.markdown-body .hljs-title.function_,
+.markdown-body .hljs-section,
+.markdown-body .hljs-built_in {
+  color: var(--syn-fn);
+}
+
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote,
+.markdown-body .hljs-meta,
+.markdown-body .hljs-deletion {
+  color: var(--syn-cmt);
+  font-style: italic;
+}
+
+.markdown-body .hljs-variable,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-attr,
+.markdown-body .hljs-property,
+.markdown-body .hljs-type,
+.markdown-body .hljs-params {
+  color: var(--syn-var);
+}
+
+/* 列表标记与脚注 */
+.markdown-body :where(li)::marker {
+  color: var(--ink-soft);
+}
+
+.markdown-body .footnotes {
+  border-top-color: var(--rule);
+  color: var(--ink-soft);
+}
+
+.markdown-body .footnote-ref a {
+  color: var(--accent);
+}
+
+.markdown-body input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+/* 提示块跟随主题色系 */
+.markdown-body .mr-callout {
+  background: var(--accent-weak);
+  border-inline-start-color: var(--accent);
+}
+
+.markdown-body .mr-callout-title {
+  color: var(--accent);
+}

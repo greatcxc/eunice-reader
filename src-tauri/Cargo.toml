@@ -1,0 +1,49 @@
+[package]
+name = "markdown-reader"
+version = "1.1.0"
+description = "Eunice Reader — Windows 原生 Markdown 阅读器与轻量编辑器"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "markdown_reader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# 可执行文件名跟随产品名。默认会用 package.name，产出 markdown-reader.exe，
+# 与安装包里的「Eunice Reader」对不上，任务栏和资源管理器里也显示成旧名。
+[[bin]]
+name = "eunice-reader"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7.2", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.3", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2.8.2"
+tauri-plugin-fs = "2.7.0"
+tauri-plugin-opener = "2.7.1"
+# 单实例插件只有 Rust 侧实现，npm 上没有对应包 —— 前端不需要它
+tauri-plugin-single-instance = "2.5.3"
+# 中文 md 常见 GBK/GB18030 编码，用它做解码回退
+encoding_rs = "0.8.42"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Tauri 的异步运行时就是 tokio，这里只需要它的 time 特性做导出超时
+tokio = { version = "1", features = ["time"] }
+
+# 写 HKCU 注册表，把程序登记进「打开方式」列表 —— 仅 Windows 需要
+# webview2-com：调用 WebView2 原生的 PrintToPdf，把当前页面直接写成 PDF 文件，
+# 不经过系统打印对话框。TAuri 已经间接依赖它，这里显式引入以便直接使用其 COM 封装。
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+webview2-com = "0.39.1"
+windows-core = "0.62.2"
+
+# 发布版优化：体积优先，冷启动速度是本项目的主要目标之一
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

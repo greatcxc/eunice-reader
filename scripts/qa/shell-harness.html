@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-tab-layout="top">
+<head>
+<meta charset="UTF-8" />
+<title>shell harness</title>
+<script>
+  // ── 必须在 main.js 之前装好 Tauri 的桥 ──
+  // 目的：让真实入口在纯浏览器里跑起来，从而用无头浏览器验证标签 / 分栏 / zen，
+  // 而不是去启动一个真实窗口（那会打断正在用电脑的人）。
+  const FILES = {
+    'D:\\fake\\market.md': '# 欧洲市场拓展方案\n\n本季度欧洲市场营收增长 **12%**，订单量创下新高。\n\n```js\nconst z = 1.25;\n```\n',
+    'D:\\fake\\weekly.md': '## 周报 第 41 周\n\n这周主要在推进渠道与合规两件事。\n',
+    'D:\\fake\\long.md': '# 渠道细则\n\n' + '直营与分销的边界需要再讨论。'.repeat(40) + '\n',
+    'D:\\fake\\plain.md': '没有一级标题的一份很长的会议纪要，正文直接开始，用来验证标签名回退到「前 N 个字」的策略是否正确。\n',
+  };
+
+  window.__FILES = FILES;
+  window.__TAURI_INTERNALS__ = {
+    invoke: (cmd, args = {}) => {
+      switch (cmd) {
+        case 'read_text_file':
+          if (!(args.path in FILES)) return Promise.reject(`文件不存在: ${args.path}`);
+          return Promise.resolve({ path: args.path, content: FILES[args.path], encoding: 'utf-8' });
+        case 'assoc_status':
+          return Promise.resolve({
+            progId: 'Markdown Document', displayName: 'Markdown 文档',
+            isDefault: true, userChoice: true, iconOk: true,
+          });
+        case 'register_open_with':
+          return Promise.resolve(false);
+        default:
+          return Promise.resolve(null);
+      }
+    },
+    transformCallback: () => 1,
+    metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+  };
+  window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
+</script>
+</head>
+<body>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+
+  // ── 用真实 index.html 的 body 结构，避免这份骨架与产物漂移 ──
+  const html = await (await fetch('/index.html')).text();
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  // innerHTML 插入的 <script> 不会执行 —— 正好，入口由下面显式 import
+  document.body.innerHTML = parsed.body.innerHTML;
+
+  if (q.get('dark')) document.documentElement.dataset.theme = 'dark';
+
+  const mr = await import('/src/main.js').then(() => window.__mr);
+  if (!mr) throw new Error('__mr 未暴露：入口没有跑起来（?qa=1 丢失？）');
+
+  // 标签布局走真实设置路径；显式传 layout 时只看参数，
+  // 免得被上一次运行留在 localStorage 里的值影响（同一 profile 会复用）
+  if (q.get('layout')) {
+    const { saveSettings } = await import('/src/lib/store.js');
+    saveSettings({ tabLayout: q.get('layout') });
+    mr.applyTabLayout();
+  }
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const open = (p) => mr.openPath(p);
+
+  // ── 场景 ──
+  const state = q.get('state') || 'tabs';
+  if (state === 'tabs') {
+    await open('D:\\fake\\market.md');
+    await open('D:\\fake\\weekly.md');
+    await open('D:\\fake\\plain.md');
+  } else if (state === 'split') {
+    await open('D:\\fake\\market.md');
+    mr.openAtZone('D:\\fake\\weekly.md', 'right'); // 右侧 1/4：分栏
+    await wait(60);
+    await open('D:\\fake\\long.md');                // 落在右栏的新标签
+  } else if (state === 'split-left') {
+    await open('D:\\fake\\market.md');
+    mr.openAtZone('D:\\fake\\weekly.md', 'left');   // 左侧 1/4：新栏在左边
+    await wait(60);
+  } else if (state === 'left-layout') {
+    await open('D:\\fake\\market.md');
+    await open('D:\\fake\\weekly.md');
+    mr.openAtZone('D:\\fake\\long.md', 'right');
+    await wait(50);
+    // 走真实设置路径：改 store 再让入口重新布局
+    const { saveSettings } = await import('/src/lib/store.js');
+    saveSettings({ tabLayout: 'left' });
+    mr.applyTabLayout();  } else if (state === 'zen') {
+    await open('D:\\fake\\market.md');
+    await mr.setZen(true);
+    document.body.classList.add('zen-top');       // 模拟鼠标移到顶边
+  } else if (state === 'drop') {
+    await open('D:\\fake\\market.md');
+    mr.paintDropZone(q.get('zone') || 'right');    // 模拟拖动中的落点提示
+  } else if (state === 'edit') {
+    // 编辑视图会真的把 CodeMirror 载进这一栏：验证每个分组各自的编辑器实例
+    await open('D:\\fake\\market.md');
+    await mr.applyViewMode('edit');
+    await wait(400);
+    await open('D:\\fake\\weekly.md');             // 同栏第二个标签
+    const g = mr.activeGroup();
+    await mr.switchToTab(g, g.tabs[0].id);         // 切回第一个：编辑器要换成它的正文
+    await wait(300);
+  } else if (state === 'click') {
+    // 走真实点击路径（不是直接调 API）：标签点选 / × 关闭 / 「+」按钮
+    await open('D:\\fake\\market.md');
+    await open('D:\\fake\\weekly.md');
+    await wait(200);
+    document.querySelector('.tabbar .tab[data-tab-id]')?.click();
+    await wait(200);
+    const onTab = document.querySelector('.tabbar .tab.is-on');
+    onTab?.querySelector('.tab-x')?.click();
+    await wait(200);
+    document.querySelector('.tabbar .tab-add')?.click();
+  } else if (state === 'shot') {
+    // README 用截图：读**真实**样例文档（Vite 把项目根目录当静态根），
+    // 于是截图里的正文、标题、代码块、表格都是真东西，不是为演示造的假数据。
+    const sample = await (await fetch('/samples/' + encodeURIComponent('欧洲市场拓展方案.md'))).text();
+    const p1 = 'D:\\samples\\欧洲市场拓展方案.md';
+    const p2 = 'D:\\samples\\渠道与合规会议纪要.md';
+    FILES[p1] = sample;
+    FILES[p2] = [
+      '# 渠道与合规会议纪要',
+      '',
+      '**时间**：2026-10-14 ｜ **参会**：市场、法务、供应链',
+      '',
+      '## 结论',
+      '',
+      '1. 德国市场优先，先完成 CE + EN71 准入；',
+      '2. 荷兰可复用同一套认证材料，Q3 再启动；',
+      '3. 包装上的 :warning: 标识必须提前 3 周打样。',
+      '',
+      '## 待办',
+      '',
+      '| 事项 | 负责 | 截止 |',
+      '|---|---|---|',
+      '| 第三方检测机构询价 | 供应链 | 10-24 |',
+      '| 德语本地化文案终审 | 市场 | 10-28 |',
+      '',
+      '> 认证周期是最容易滑期的环节，务必留足缓冲。',
+      '',
+      '```bash',
+      '# 认证材料清单',
+      'ls docs/cert/ | wc -l',
+      '```',
+      '',
+    ].join('\n');
+    const shot = q.get('shot') || 'tabs';
+    if (shot === 'split') {
+      await open(p1);
+      mr.openAtZone(p2, 'right');
+      await wait(80);
+    } else {
+      // 先开会议纪要再开方案：当前标签就是内容更丰富的样例文档
+      await open(p2);
+      await open(p1);
+    }
+    if (shot === 'zen') {
+      // 不加 zen-top：要的就是「全是内容」的样子
+      await mr.setZen(true);
+    }
+    if (q.get('scrollpane')) {
+      document.querySelector('.pane-preview').scrollTop = Number(q.get('scrollpane'));
+    }
+  } else if (state === 'empty') {
+    // 什么都没有
+  }
+
+  await wait(1600); // 等渲染 + 字数统计（400ms 防抖 + 空闲回调）落定
+
+  if (q.get('closetab')) {
+    const g = mr.activeGroup();
+    const target = q.get('closetab') === 'active' ? mr.activeTab(g) : g.tabs[0];
+    await mr.closeTab(g, target.id);
+    await wait(200);
+  }
+
+  if (q.get('probe')) {
+    const gs = mr.state.groups;
+    const tabsIn = (g) => g.el.querySelectorAll('.tabbar .tab').length;
+    const cs = (el, p) => (el ? getComputedStyle(el)[p] : 'n/a');
+    const cv = (p) => getComputedStyle(document.documentElement).getPropertyValue(p).trim();
+    const tabbar = document.querySelector('.tabbar');
+    const preview = document.querySelector('.pane-preview > .markdown-body');
+    document.title = [
+      'groups=' + gs.length,
+      'activeGid=' + mr.state.activeGid,
+      'activeTabs=' + gs.map((g) => g.tabs.length).join('/'),
+      'tabNodes=' + gs.map(tabsIn).join('/'),
+      'tabTitles=' + gs.map((g) => g.tabs.map((t) => t.title).join('|')).join(' // '),
+      'onTabs=' + [...document.querySelectorAll('.tabbar .tab.is-on .tab-name')].map((n) => n.textContent).join('|'),
+      'dirtyDots=' + document.querySelectorAll('.tab.is-dirty').length,
+      'multi=' + document.querySelector('.groups').classList.contains('is-multi'),
+      'tabLayout=' + document.documentElement.dataset.tabLayout,
+      'railHidden=' + document.querySelector('.tabrail').hidden,
+      'tabbarH=' + Math.round(tabbar ? tabbar.getBoundingClientRect().height : 0),
+      'topOffset=' + cv('--top-offset'),
+      'railW=' + Math.round((document.querySelector('.tabrail') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width),
+      'zen=' + document.body.classList.contains('is-zen'),
+      'zenTop=' + document.body.classList.contains('zen-top'),
+      'dropHidden=' + document.getElementById('drop-overlay').hidden,
+      'dropTarget=' + [...document.querySelectorAll('.dz.is-target')].map((d) => d.dataset.zone).join(','),
+      'emptyState=' + [...document.querySelectorAll('.group.is-empty')].length,
+      'previewChars=' + (preview ? preview.textContent.trim().length : 0),
+      // 阅读区为什么可能是空的：把几何与颜色一起量出来
+      'pvRect=' + (preview ? [Math.round(preview.getBoundingClientRect().top), Math.round(preview.getBoundingClientRect().height)].join('x') : 'n/a'),
+      'paneRect=' + (() => { const p = document.querySelector('.pane-preview'); return p ? [Math.round(p.getBoundingClientRect().top), Math.round(p.getBoundingClientRect().height), Math.round(p.scrollTop)].join('x') : 'n/a'; })(),
+      'pvFont=' + cs(preview, 'fontSize') + '/' + cs(preview, 'color') + '/' + cs(preview, 'visibility') + '/' + cs(preview, 'opacity'),
+      'firstChild=' + JSON.stringify((preview?.firstElementChild?.textContent || '').slice(0, 18)),
+      'anchorMarks=' + document.querySelectorAll('.mr-anchor-link').length,
+      'h1ids=' + document.querySelectorAll('.markdown-body h1[id]').length,
+      'cmEditors=' + document.querySelectorAll('.cm-editor').length,
+      'cmText=' + JSON.stringify((document.querySelector('.cm-content')?.textContent || '').slice(0, 12)),
+      'statusLines=' + (document.getElementById('stat-lines') || {}).textContent,
+      'titlebarName=' + (document.getElementById('lbl-filename') || {}).textContent,
+      'q=' + location.search,
+    ].join(' | ');
+  }
+  window.__ready = true;
+</script>
+</body>
+</html>

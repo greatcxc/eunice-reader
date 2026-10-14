@@ -1,0 +1,29 @@
+# 统一行尾：仓库里一律 LF，避免 Windows 机器上反复出现「整个文件都改了」的噪音
+* text=auto eol=lf
+
+# 二进制资源：不要做任何行尾/编码转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.otf binary
+*.exe binary
+*.dll binary
+*.pdf binary
+
+# 这些文本文件必须保持可读的文本属性，方便 diff
+*.md text
+*.js text
+*.mjs text
+*.json text
+*.css text
+*.html text
+*.rs text
+*.toml text
+*.nsh text
+*.ps1 text
+*.py text

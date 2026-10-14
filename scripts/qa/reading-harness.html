@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-theme-doc="plain">
+<head>
+<meta charset="UTF-8" />
+<title>reading harness</title>
+<link rel="stylesheet" href="/src/styles/app.css" />
+<link rel="stylesheet" href="/src/styles/zh-optimize.css" />
+<link rel="stylesheet" href="/src/styles/theme.css" />
+</head>
+<body>
+<div id="app">
+  <header class="titlebar">
+    <div class="tb-group tb-left"></div>
+    <div class="tb-doc"><span class="doc-title">欧洲市场拓展方案.md</span></div>
+    <div class="tb-group tb-right"></div>
+  </header>
+
+  <div class="workspace is-read" id="workspace">
+    <section class="pane-editor" id="editor-pane">
+      <div class="editor-host" id="editor-host"># 编辑区示例文本 16px</div>
+    </section>
+    <section class="pane-preview" id="pane-preview">
+      <article class="markdown-body" id="preview">
+        <h1>欧洲市场拓展方案</h1>
+        <p>本季度<strong>欧洲市场</strong>营收增长 12%，订单量创下新高。下面是三件必须同时成立的事：产品、渠道、合规。</p>
+        <h2>一、渠道结构</h2>
+        <ul>
+          <li>直营占比 <code>38%</code></li>
+          <li>分销占比 52%</li>
+        </ul>
+        <blockquote><p>订单量创新高，但客单价在下滑。</p></blockquote>
+        <table>
+          <thead><tr><th>区域</th><th>营收</th><th>同比</th></tr></thead>
+          <tbody>
+            <tr><td>德国</td><td>€1.2M</td><td>+18%</td></tr>
+            <tr><td>法国</td><td>€0.9M</td><td>+7%</td></tr>
+          </tbody>
+        </table>
+        <pre><code>const zoom = 1.25;
+console.log(`实际字号 ${16 * zoom}px`);</code></pre>
+        <p>结语：<em>先把渠道铺开，再谈品牌。</em></p>
+      </article>
+    </section>
+  </div>
+
+  <footer class="statusbar">
+    <span>行 24</span>
+    <span>字 512</span>
+    <span class="spacer"></span>
+    <button class="status-zoom" id="stat-zoom" type="button" data-tip="显示缩放（Ctrl + = / - / 0，或 Ctrl + 滚轮）">100%</button>
+    <span>素纸</span>
+  </footer>
+</div>
+
+<script type="module">
+  // 只驱动真实的 CSS：排版令牌与 src/styles/app.css 里的一模一样，
+  // 因此这里量到的 font-size / max-width / padding 就是应用里的值。
+  const q = new URLSearchParams(location.search);
+  const zoom = Number(q.get('zoom') || 1);
+  const root = document.documentElement;
+
+  root.style.setProperty('--mr-font-size', '16px');
+  root.style.setProperty('--mr-line-height', '1.9');
+  root.style.setProperty('--mr-content-width', '900px');
+  root.style.setProperty('--mr-zoom', String(zoom));
+  document.getElementById('stat-zoom').textContent = Math.round(zoom * 100) + '%';
+  if (Math.abs(zoom - 1) > 1e-6) document.getElementById('stat-zoom').classList.add('is-zoomed');
+
+  if (q.get('dark')) {
+    root.dataset.theme = 'dark';
+    root.dataset.themeDoc = 'dusk';
+  }
+
+  // 阅读模式下编辑器是隐藏的 —— 想看编辑区就加 ?split=1
+  if (q.get('split')) document.getElementById('workspace').className = 'workspace is-split';
+
+  if (q.get('probe')) {
+    const cs = (el, p) => getComputedStyle(el)[p];
+    const body = document.getElementById('preview');
+    const px = (v) => Math.round(parseFloat(v) * 10) / 10;
+    const fontSize = parseFloat(cs(body, 'fontSize'));
+    const innerWidth = body.clientWidth - parseFloat(cs(body, 'paddingLeft')) * 2;
+    document.title = [
+      'zoom=' + zoom,
+      'fontSize=' + px(cs(body, 'fontSize')),
+      'lineHeight=' + px(cs(body, 'lineHeight')),
+      'maxWidth=' + px(cs(body, 'maxWidth')),
+      'padTop=' + px(cs(body, 'paddingTop')),
+      'padSide=' + px(cs(body, 'paddingLeft')),
+      'h1=' + px(cs(body.querySelector('h1'), 'fontSize')),
+      'code=' + px(cs(body.querySelector('pre'), 'fontSize')),
+      'table=' + px(cs(body.querySelector('table'), 'fontSize')),
+      // 每行容纳的「字号数」：缩放前后这个比值应当不变（等比缩放的关键证据）
+      'chars=' + Math.round((innerWidth / fontSize) * 10) / 10,
+      'editor=' + px(cs(document.getElementById('editor-host'), 'fontSize')),
+      'q=' + location.search,
+    ].join(' | ');
+  }
+
+  window.__ready = true;
+</script>
+</body>
+</html>
