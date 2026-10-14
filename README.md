@@ -102,7 +102,8 @@ KaTeX 253 KB + 29 KB CSS（文档出现 `$`）、highlight.js 154 KB（有代码
 
 ## 安装
 
-1. 到 [Releases](https://github.com/greatcxc/eunice-reader/releases) 下载 `Eunice Reader_x.y.z_x64-setup.exe`
+1. 到 [Releases](https://github.com/greatcxc/eunice-reader/releases/latest) 下载安装包
+   （`Eunice.Reader_x.y.z_x64-setup.exe`，约 59 MB）
 2. 双击安装。默认 `currentUser` 模式，**不需要管理员权限**
 3. 安装完 `.md` 就有了专属文档图标与右键菜单；应用会出现在「打开方式」列表里
 
