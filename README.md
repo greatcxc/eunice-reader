@@ -6,17 +6,16 @@
 
 Tauri 2 + WebView2 · 完全离线 · 内置完整 CJK 字体 · 标签与分栏 · Zen 模式 · MIT
 
-[功能](#功能) · [截图](#截图) · [安装](#安装) · [快捷键](#快捷键) · [技术栈](#技术栈) · [设计取舍](docs/DESIGN.md) · [开发](#开发)
+[中文](README.md) · [English](README.en.md) · [功能](#功能) · [截图](#截图) · [安装](#安装) · [快捷键](#快捷键) · [技术栈](#技术栈) · [设计取舍](docs/DESIGN.md) · [开发](#开发)
 
 </div>
 
 ---
 
-> **English TL;DR** — Eunice Reader is a Windows-native **Markdown reader** (with light editing) built on Tauri 2 + WebView2.
-> It renders full GFM plus footnotes, emoji, KaTeX and Mermaid; ships **complete CJK fonts** so no glyph ever falls
-> back to a system font; and is tuned for Chinese long-form reading (measure, line height, punctuation, justification).
-> Tabs, split panes, a chrome-free **Zen mode**, 12 document themes, 11 font presets, PDF export and Windows file
-> associations are built in. Free for commercial use under the **MIT** license.
+> **English TL;DR** — A Windows-native Markdown **reader** (with light editing) built on Tauri 2 +
+> WebView2, tuned for Chinese long-form typography, with tabs, split panes, Zen mode, 12 themes and a
+> bilingual UI. Free for commercial use under the MIT license.
+> **[Read the full English README →](README.en.md)**
 
 ## 为什么是「阅读器」
 
@@ -54,12 +53,18 @@ Tauri 2 + WebView2 · 完全离线 · 内置完整 CJK 字体 · 标签与分栏
 - **整体缩放**：`Ctrl+=` / `Ctrl+-` / `Ctrl+0` 或 `Ctrl+滚轮`，状态栏实时显示百分比（50%–300%）。
   字号、行宽、留白、编辑区字号全部由**同一个系数**乘出来，每行字数保持不变
 - **12 款正文主题**：一套主题联动纸面、正文、标题、引用、表格、代码块底色与语法着色色相；
-  卡片用 Shadow DOM 真实渲染中文缩略图，分类页签 + 星标收藏
+  卡片用 Shadow DOM 真实渲染缩略图，分类页签 + 星标收藏
 - **11 套字体预设**：思源黑体/宋体、霞鹜文楷、霞鹜新致宋、狮尾圆体、更纱等宽、未来荧黑，
   以及 Inter / EB Garamond / JetBrains Mono 的西文混排组合
-- **毛玻璃**：顶栏、标签条、状态栏、侧栏、设置抽屉都是 `backdrop-filter` 浮层，正文从它们下面滚过去
+- **全屏毛玻璃**（默认开）：窗口本身透明，由 Windows 的 acrylic 把窗口后面的内容模糊掉；
+  界面底色再做成半透明让那层模糊透出来 —— 隐约能看到下层窗口的色块，正文仍然清晰。
+  设置里可以一键关成完全不透明
+- **无边框窗口**：去掉了系统标题栏，最小化 / 最大化 / 关闭与窗口边缘的 8 方向缩放全部自绘，
+  图标与 hover 反馈跟界面同一套语言；双击顶栏最大化/还原
 - **Zen 模式**（`Ctrl+Shift+Z`）：只剩正文；鼠标靠近窗口上/左/下缘时界面才滑出来。
-  窗口原本最大化时直接切**真全屏**，并隐藏系统标题栏
+  窗口原本最大化时直接切**真全屏**
+- **中英双语**：默认跟随系统语言（WebView2 的 `navigator.language` 就是 Windows 显示语言），
+  也可以在设置里锁定；主题名、字体名、面板文案、对话框、日期无关的提示全部双语
 
 ### 编辑与导出
 
@@ -90,13 +95,23 @@ KaTeX 253 KB + 29 KB CSS（文档出现 `$`）、highlight.js 154 KB（有代码
 
 ## 截图
 
-| 阅读 + 标签 | 分栏 |
+| 阅读 + 标签（自绘窗口控制） | 分栏 |
 |---|---|
 | ![阅读视图与标签](docs/qa/app-reading-tabs.png) | ![分栏](docs/qa/app-split-panes.png) |
 
 | 左侧标签布局 | Zen 模式 |
 |---|---|
 | ![左侧标签布局](docs/qa/app-tabs-left.png) | ![Zen 模式](docs/qa/app-zen.png) |
+
+| 全屏毛玻璃（开） | 全屏毛玻璃（关） |
+|---|---|
+| ![毛玻璃开启](docs/qa/app-glass-on.png) | ![毛玻璃关闭](docs/qa/app-glass-off.png) |
+
+英文界面（跟随系统语言，也可在设置里切换）：
+
+![英文界面](docs/qa/app-english.png)
+
+设置抽屉：
 
 ![设置抽屉](docs/qa/app-settings.png)
 
@@ -109,6 +124,11 @@ KaTeX 253 KB + 29 KB CSS（文档出现 `$`）、highlight.js 154 KB（有代码
 
 **系统要求**：Windows 10 1809+ / Windows 11，x64。运行时依赖 WebView2 ——
 Win11 自带，Win10 多数已随 Edge 安装；缺失时安装器会自动引导下载。
+
+窗口是**无边框**的（没有系统标题栏），顶部那一条就是标题栏：可以拖动、双击最大化/还原，
+右端是最小化 / 最大化 / 关闭，窗口四边与四角都能拖拽缩放。
+全屏毛玻璃依赖 Windows 的 acrylic：Win11 与 Win10 1803+ 支持；
+更老的系统上会退化成「半透明、无模糊」，此时可以在设置里关掉它。
 
 **两个可能遇到的提示，都不是故障：**
 

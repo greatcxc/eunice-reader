@@ -35,6 +35,8 @@ import pinOff from '../icons/pin-off.svg?raw';
 import plus from '../icons/plus.svg?raw';
 import maximize from '../icons/maximize.svg?raw';
 import minimize from '../icons/minimize.svg?raw';
+import minus from '../icons/minus.svg?raw';
+import square from '../icons/square.svg?raw';
 
 const RAW = {
   'folder-open': folderOpen,
@@ -68,6 +70,8 @@ const RAW = {
   plus,
   maximize,
   minimize,
+  minus,
+  square,
 };
 
 /** 去掉 lucide 的注释头和多余属性，只留干净的 SVG 字符串 */

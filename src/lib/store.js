@@ -23,6 +23,8 @@ const DEFAULTS = {
   uiDark: null,               // 界面明暗；null = 跟随正文主题的深浅
   viewMode: 'read',           // read | split | edit —— 默认纯阅读，按需切到源码
   tabLayout: 'top',           // top = 顶栏下方一条；left = 正文左侧一列
+  locale: 'auto',             // auto = 跟随系统语言（WebView2 的 navigator.language）
+  windowGlass: true,          // 全屏毛玻璃：窗口半透明 + 系统 acrylic 模糊，默认开
   zoom: 1,                    // 显示缩放系数：正文字号、行宽、编辑区字号都乘以它
   fontSize: 16,               // 基准字号；屏幕上实际显示的是 fontSize × zoom
   lineHeight: 1.9,            // 中文正文默认行高比英文高

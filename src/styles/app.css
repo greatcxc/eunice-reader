@@ -66,6 +66,8 @@
      用系数而不是直接改字号，是为了让「字号」保持为用户设定的基准值 ——
      放大 150% 之后再调字号，调的仍是基准，不会在放大后的值上再叠一层。 */
   --mr-zoom: 1;
+  /* 纸面的不透明度：全屏毛玻璃模式下会调低（见文件末尾的玻璃一节） */
+  --paper-alpha: 100%;
   --mr-font-body: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
 
   --titlebar-h: 46px;
@@ -2244,6 +2246,165 @@ body.is-zen.zen-left .tabrail {
 /* zen 下正文已经让开全部空间，再留一条顶栏高度的内边距就白了一块 */
 body.is-zen .pane-preview {
   scroll-padding-top: 0;
+}
+
+/* ══════════════ 自绘窗口控制 ══════════════
+   窗口去掉了系统标题栏（tauri.conf.json 的 decorations: false），
+   最小化 / 最大化 / 关闭 由这里重绘，尺寸与 hover 反馈跟着界面语言走。
+   拖动与双击最大化由顶栏的 data-tauri-drag-region 承担；
+   缩放由 #resize-handles 的 8 条热区 + startResizeDragging 承担。 */
+
+.win-controls {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 0;
+  height: 100%;
+  margin-left: 4px;
+}
+
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  cursor: default;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.win-btn:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.win-btn:active {
+  background: var(--press);
+}
+
+/* 关闭键是唯一用红色 hover 的控件：误点代价最大，必须一眼可辨 */
+.win-btn.win-close:hover {
+  background: #d64545;
+  color: #fff;
+}
+
+.win-btn.win-close:active {
+  background: #b93a3a;
+}
+
+/* ── 无边框窗口的缩放热区 ──
+   8 个方向各一条，压在界面之上但只有 4–6px 宽；
+   指针进入即调 startResizeDragging，交给系统做真正的缩放循环。 */
+
+#resize-handles {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.rz {
+  position: fixed;
+  pointer-events: auto;
+}
+
+.rz-n,
+.rz-s {
+  left: 8px;
+  right: 8px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.rz-w,
+.rz-e {
+  top: 8px;
+  bottom: 8px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.rz-n { top: 0; }
+.rz-s { bottom: 0; }
+.rz-w { left: 0; }
+.rz-e { right: 0; }
+
+.rz-nw,
+.rz-ne,
+.rz-sw,
+.rz-se {
+  width: 10px;
+  height: 10px;
+}
+
+.rz-nw { top: 0; left: 0; cursor: nwse-resize; }
+.rz-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.rz-ne { top: 0; right: 0; cursor: nesw-resize; }
+.rz-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+
+/* ══════════════ 全屏毛玻璃 ══════════════
+   两层叠加：
+   1. 系统层：窗口 transparent + acrylic（tauri.conf.json 的 windowEffects），
+      由 DWM 把窗口后面的内容模糊掉；
+   2. 界面层：把界面底色换成半透明，让那层模糊透出来。
+   只做第 1 层是没用的 —— 界面不透明，玻璃后面什么都看不见。
+
+   不透明度刻意留得比较高（纸面 0.86 / 面板 0.72）：
+   acrylic 在部分 Win10 上是不可用的，那时窗口就是「半透明糊在桌面上」，
+   底色太透会直接读不了字。 */
+
+:root[data-window-glass='on'],
+:root[data-window-glass='on'] body {
+  /* 根元素的底色会传播成整块画布的背景，不透它等于把整面玻璃糊住 */
+  background: transparent;
+}
+
+:root[data-window-glass='on'] {
+  --paper-alpha: 84%;
+  --ui-content: rgba(255, 255, 255, 0.8);
+  --ui-chrome: rgba(248, 249, 250, 0.66);
+  --ui-sunken: rgba(238, 240, 242, 0.6);
+  --glass-bg: rgba(var(--glass-rgb), 0.5);
+  --glass-panel: rgba(var(--glass-rgb), 0.88);
+  /* 毛玻璃要「大模糊 + 低不透明度」才像玻璃：模糊不够就只是脏 */
+  --glass-blur: blur(30px) saturate(170%);
+}
+
+:root[data-window-glass='on'][data-theme='dark'] {
+  --ui-content: rgba(28, 31, 36, 0.78);
+  --ui-chrome: rgba(34, 38, 44, 0.64);
+  --ui-sunken: rgba(23, 25, 29, 0.6);
+}
+
+/* 工作区在玻璃模式下必须让出这一层。
+   它和里面的分组/面板都会画半透明底色，两层叠起来透明度是相乘的：
+   0.8 × 0.84 之后只剩 3% 的背景能透出来，玻璃等于白做。
+   面板自己铺满了整块区域，所以这里清空不会露出空白。 */
+:root[data-window-glass='on'] .workspace {
+  background: transparent;
+}
+
+/* zen 模式本来就是「只剩内容」，纸面再透一点会更通透 */
+:root[data-window-glass='on'] body.is-zen {
+  --paper-alpha: 78%;
+}
+
+/* ══════════════ 英文界面的排版微调 ══════════════
+   zh-optimize.css 里的字距与两端对齐是给中文调的；
+   界面切到英文时关掉，免得西文被拉出奇怪的字距。 */
+
+:root[data-locale='en-US'] .markdown-body {
+  letter-spacing: 0;
+  word-break: normal;
+}
+
+:root[data-locale='en-US'] .markdown-body > p,
+:root[data-locale='en-US'] .markdown-body li {
+  text-align: start;
+  text-align-last: auto;
 }
 
 /* ══════════════ 滚动条 ══════════════ */

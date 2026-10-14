@@ -342,9 +342,12 @@
 /* 纸面铺满整个预览区，而不是只铺正文那一栏。
    正文本身有最大行宽（--mr-content-width），若把背景挂在 .markdown-body 上，
    900px 之外就会漏出界面底色，两侧各留一条白边 —— 看着像没做完。
-   真正的「纸」是预览区，正文只是纸上排的字。 */
+   真正的「纸」是预览区，正文只是纸上排的字。
+
+   纸面的不透明度走 --paper-alpha：全屏毛玻璃模式下把它调低一档，
+   系统 acrylic 的模糊才会从纸面后面透出来（默认 100% = 完全不透明）。 */
 .pane-preview {
-  background: var(--paper);
+  background: color-mix(in srgb, var(--paper) var(--paper-alpha, 100%), transparent);
 }
 
 .markdown-body {

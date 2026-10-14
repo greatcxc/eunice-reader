@@ -107,13 +107,25 @@ cmd /c "`"$edge`" --headless=new --disable-gpu-sandbox --user-data-dir=`"$prof`"
 | `state=drop&zone=left\|tab\|right` | 拖放三档落点提示 |
 | `state=edit` | 编辑视图：验证每个分组各自的 CodeMirror 实例、切标签换正文 |
 | `state=click` | 走真实点击路径（点标签 / 点 × / 点 +） |
+| `state=shot&shot=tabs\|split\|zen` | README 用截图：读**真实**的 `samples/*.md` 渲染 |
 | `state=empty` | 空状态 |
 | `layout=top\|left` | 强制标签布局（否则会沿用上一次留在 localStorage 里的值） |
+| `locale=auto\|zh-CN\|en-US` | 强制界面语言（`auto` 走 `navigator.language`） |
+| `glass=0\|1` | 全屏毛玻璃开关（切换界面底色的半透明度） |
+| `behind=1` | 在页面背后画一块彩色「桌面」，用来**看见**玻璃透出来的是什么 |
+| `settings=1` | 打开设置抽屉（点真实按钮），用来核对英文界面下的面板 |
 | `closetab=1\|active` | 关第一个 / 关当前标签 |
 | `probe=1` | 把分组数、每栏标签数、标签名、布局令牌、拖放高亮、cm 实例数等写进 `<title>` |
 
 `probe=1` 还会量阅读区的几何（`pvRect` / `paneRect` / `pvFont`）——
-正文第一行如果落在标签条底下，这里是唯一能看出来的地方。
+正文第一行如果落在标签条底下，这里是唯一能看出来的地方；
+语言与窗口相关的字段有 `locale` / `lang` / `emptyTitle` / `secTitles` / `winButtons` /
+`resizeZones` / `dragRegion` / `windowGlass` / `paperAlpha`。
+
+**玻璃效果怎么验**：`behind=1` 画彩色底，`glass=1|0` 各截一张，
+再用像素平均值对比（同一区域 `R≈226` vs `R≈253`）。
+肉眼看两张截图差异很小是正常的 —— 纸面只放 16% 的背景进来，
+**这正是「隐约看到色块、但字仍然清晰」的取舍**。
 
 ## 注意
 

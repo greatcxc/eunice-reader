@@ -147,7 +147,9 @@ export const FONT_PRESETS = [
   {
     id: 'sans',
     label: '思源黑体',
+    labelEn: 'Noto Sans SC',
     note: '三万码位全字符 · 默认',
+    noteEn: '30k glyphs, complete set · default',
     category: 'sans',
     sample: '中文正文 Aa 123 ±≈',
     stack: `'Eunice Sans SC', ${TAIL}`,
@@ -155,7 +157,9 @@ export const FONT_PRESETS = [
   {
     id: 'serif',
     label: '思源宋体',
+    labelEn: 'Noto Serif SC',
     note: '衬线 · 长篇中文阅读',
+    noteEn: 'Serif, made for long CJK reads',
     category: 'serif',
     sample: '中文正文 Aa 123 ±≈',
     stack: `'Eunice Serif SC', ${TAIL}`,
@@ -163,7 +167,9 @@ export const FONT_PRESETS = [
   {
     id: 'wenkai',
     label: '霞鹜文楷',
+    labelEn: 'LXGW WenKai',
     note: '楷体 · 按需加载 194 片',
+    noteEn: 'Kai script, loaded in 194 slices on demand',
     category: 'kai',
     sample: '中文正文 Aa 123',
     stack: `'LXGW WenKai', 'Eunice Sans SC', ${TAIL}`,
@@ -171,7 +177,9 @@ export const FONT_PRESETS = [
   {
     id: 'inter-sans',
     label: 'Inter + 思源黑体',
+    labelEn: 'Inter + Noto Sans SC',
     note: '西文/数字用 Inter',
+    noteEn: 'Latin and digits in Inter',
     category: 'sans',
     sample: 'English Aa 123 ±≈',
     stack: `'Eunice Inter', 'Eunice Sans SC', ${TAIL}`,
@@ -179,7 +187,9 @@ export const FONT_PRESETS = [
   {
     id: 'garamond-serif',
     label: 'Garamond + 思源宋体',
+    labelEn: 'Garamond + Noto Serif SC',
     note: '西文衬线 · 适合引文',
+    noteEn: 'Latin serif, good for quotations',
     category: 'serif',
     sample: 'English Aa 123 ±≈',
     stack: `'Eunice Garamond', 'Eunice Serif SC', ${TAIL}`,
@@ -187,7 +197,9 @@ export const FONT_PRESETS = [
   {
     id: 'mono-sans',
     label: 'JetBrains Mono + 思源黑体',
+    labelEn: 'JetBrains Mono + Noto Sans SC',
     note: '等宽 · 技术文档',
+    noteEn: 'Monospace, for technical docs',
     category: 'mono',
     sample: 'mono Aa 123 ±≈',
     stack: `'Eunice Mono', 'Eunice Sans SC', ${TAIL}`,
@@ -198,7 +210,9 @@ export const FONT_PRESETS = [
   {
     id: 'swei',
     label: '狮尾圆体',
+    labelEn: 'Swei Gothic',
     note: '圆体 · 柔和不幼稚',
+    noteEn: 'Rounded, soft but not childish',
     category: 'round',
     sample: '中文正文 Aa 123 ±≈',
     // 狮尾圆体只有中文字形，西文与数字由思源黑体接住，故把它放在第二位
@@ -207,7 +221,9 @@ export const FONT_PRESETS = [
   {
     id: 'zhisong',
     label: '霞鹜新致宋',
+    labelEn: 'LXGW Neo ZhiSong',
     note: '老式衬线 · 书卷气',
+    noteEn: 'Old-style serif, bookish',
     category: 'serif',
     sample: '中文正文 Aa 123 ±≈',
     stack: `'Eunice ZhiSong', 'Eunice Serif SC', ${TAIL}`,
@@ -215,7 +231,9 @@ export const FONT_PRESETS = [
   {
     id: 'sarasa-mono',
     label: '更纱等宽',
+    labelEn: 'Sarasa Mono SC',
     note: '等宽中文 · 码位最全',
+    noteEn: 'Monospaced CJK, widest coverage',
     category: 'mono',
     sample: '等宽中文 Aa 123 ±≈',
     stack: `'Eunice Sarasa', ${TAIL}`,
@@ -223,7 +241,9 @@ export const FONT_PRESETS = [
   {
     id: 'glow-sans',
     label: '未来荧黑',
+    labelEn: 'Glow Sans',
     note: '几何无衬线 · 偏现代',
+    noteEn: 'Geometric sans, modern',
     category: 'sans',
     sample: '中文正文 Aa 123 ±≈',
     stack: `'Eunice Glow', 'Eunice Sans SC', ${TAIL}`,
@@ -231,7 +251,9 @@ export const FONT_PRESETS = [
   {
     id: 'system',
     label: '系统字体',
+    labelEn: 'System fonts',
     note: '微软雅黑 · 零加载',
+    noteEn: 'Microsoft YaHei, zero download',
     category: 'system',
     sample: '系统字体 Aa 123',
     stack: `"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", ${TAIL}`,
@@ -241,13 +263,13 @@ export const FONT_PRESETS = [
 export const FONT_BY_ID = new Map(FONT_PRESETS.map((f) => [f.id, f]));
 
 export const FONT_CATEGORIES = [
-  { id: 'all', label: '全部' },
-  { id: 'sans', label: '无衬线' },
-  { id: 'serif', label: '衬线' },
-  { id: 'round', label: '圆体' },
-  { id: 'kai', label: '楷体' },
-  { id: 'mono', label: '等宽' },
-  { id: 'system', label: '系统' },
+  { id: 'all', label: '全部', labelEn: 'All' },
+  { id: 'sans', label: '无衬线', labelEn: 'Sans' },
+  { id: 'serif', label: '衬线', labelEn: 'Serif' },
+  { id: 'round', label: '圆体', labelEn: 'Rounded' },
+  { id: 'kai', label: '楷体', labelEn: 'Kai' },
+  { id: 'mono', label: '等宽', labelEn: 'Mono' },
+  { id: 'system', label: '系统', labelEn: 'System' },
 ];
 
 export function applyFont(id) {

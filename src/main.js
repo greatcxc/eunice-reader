@@ -50,6 +50,7 @@ import {
 } from './lib/store.js';
 import { DOC_THEME_BY_ID } from './lib/doc-themes.js';
 import { applyFont } from './lib/fonts.js';
+import { t, setLocale, detectLocale, applyStaticI18n, getLocale } from './lib/i18n.js';
 // createEditor 不在这里 import：编辑器是懒加载的，见 ensureEditor()
 
 /* ------------------------------------------------------------------ */
@@ -128,6 +129,126 @@ function paintIcons() {
   }
   for (const b of document.querySelectorAll('.tab-add')) b.innerHTML = icon('plus', 15);
   for (const a of document.querySelectorAll('.empty-art')) a.innerHTML = icon('book-open', 44);
+  // 自绘窗口控制：与界面同一套图标语言
+  $('btn-win-min').innerHTML = icon('minus', 15);
+  $('btn-win-close').innerHTML = icon('x', 15);
+  paintMaximizeIcon();
+}
+
+/** 最大化与还原是同一个按钮：图标跟着窗口状态走 */
+let winMaximized = false;
+
+function paintMaximizeIcon() {
+  const btn = $('btn-win-max');
+  if (!btn) return;
+  btn.innerHTML = icon(winMaximized ? 'copy' : 'square', 14);
+  btn.setAttribute('aria-label', t(winMaximized ? 'win.restore' : 'win.maximize'));
+  btn.dataset.tip = t(winMaximized ? 'win.restore' : 'win.maximize');
+  // 最大化时窗口贴满屏幕，右上角那 1px 圆角反而显得毛糙
+  document.documentElement.dataset.winMax = winMaximized ? 'on' : 'off';
+}
+
+/* ------------------------------------------------------------------ */
+/* 自绘窗口控制与缩放                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 无边框窗口的最小化 / 最大化 / 关闭，以及 8 个方向的缩放热区。
+ *
+ * 窗口在 tauri.conf.json 里是 `decorations: false` + `transparent: true`，
+ * 系统标题栏没有了，这些职责全部落到界面上：
+ *   - 拖动 / 双击最大化 → 顶栏的 data-tauri-drag-region（Tauri 内建行为）
+ *   - 缩放 → startResizeDragging，把指针方向交给系统去做真正的缩放循环
+ *     （自己算尺寸会在缩放时抖动，而且拖到屏幕边缘的贴边逻辑会失效）
+ * 非 Tauri 环境（浏览器里做 UI 调试）全部静默降级，界面照样能用。
+ */
+function bindWindowControls() {
+  const win = () => getCurrentWindow();
+
+  $('btn-win-min').addEventListener('click', () => win().minimize().catch(() => {}));
+  $('btn-win-close').addEventListener('click', () => win().close().catch(() => {}));
+  $('btn-win-max').addEventListener('click', async () => {
+    try {
+      await win().toggleMaximize();
+      winMaximized = await win().isMaximized();
+      paintMaximizeIcon();
+    } catch {
+      /* 非 Tauri 环境 */
+    }
+  });
+
+  // 从系统侧改状态（双击顶栏、Win+↑、拖到屏幕顶部贴边）也要同步图标
+  win()
+    .onResized(async () => {
+      try {
+        const now = await win().isMaximized();
+        if (now !== winMaximized) {
+          winMaximized = now;
+          paintMaximizeIcon();
+        }
+      } catch {
+        /* ignore */
+      }
+    })
+    .catch(() => {});
+  win()
+    .isMaximized()
+    .then((v) => {
+      winMaximized = Boolean(v);
+      paintMaximizeIcon();
+    })
+    .catch(() => {});
+
+  for (const handle of document.querySelectorAll('#resize-handles .rz')) {
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      win()
+        .startResizeDragging(handle.dataset.dir)
+        .catch(() => {});
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 全屏毛玻璃                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 窗口级的 acrylic 玻璃（DWM 把窗口后面的内容模糊掉，见 tauri.conf.json 的
+ * windowEffects）+ 界面底色的半透明化（CSS 的 --paper-alpha 等）。
+ *
+ * 关掉时不需要撤销系统效果：把界面画成不透明，后面那层模糊自然就看不见了 ——
+ * 少一次可能失败的运行时调用，也少一种状态。
+ */
+function applyWindowGlass() {
+  const on = getSettings().windowGlass !== false;
+  document.documentElement.dataset.windowGlass = on ? 'on' : 'off';
+}
+
+/* ------------------------------------------------------------------ */
+/* 语言                                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 切界面语言。
+ *
+ * 「跟随系统」直接读 navigator.language —— WebView2 里它就是 Windows 的显示语言，
+ * 不需要任何原生调用。切完要重刷三处：静态文案、动态渲染的（标签/状态栏/设置面板）、
+ * 以及 html lang（影响字体回退与断词规则）。
+ */
+function applyLocale() {
+  const locale = setLocale(detectLocale(getSettings().locale));
+  applyStaticI18n();
+  paintIcons();
+  paintZoom();
+  for (const g of state.groups) renderTabs(g);
+  updateFilename();
+  updateStats();
+  buildOutline();
+  // 设置抽屉开着就重画一遍，否则里面还是旧语言
+  if (settingsModal?.isOpen?.()) settingsModal.refresh();
+  return locale;
 }
 
 /* ------------------------------------------------------------------ */
@@ -269,7 +390,7 @@ function titleFromText(text, path) {
     .replace(/\s+/g, ' ')
     .trim();
   if (plain) return plain.slice(0, 16) + (plain.length > 16 ? '…' : '');
-  return fileName(path) || '未命名';
+  return fileName(path) || t('tab.untitled');
 }
 
 const fileName = (p) => (p ? p.split(/[\\/]/).pop() : '');
@@ -314,8 +435,8 @@ function renderTabs(g) {
       const x = document.createElement('button');
       x.className = 'tab-x';
       x.type = 'button';
-      x.title = '关闭标签';
-      x.setAttribute('aria-label', `关闭 ${tab.title}`);
+      x.title = t('tab.close');
+      x.setAttribute('aria-label', t('tab.closeNamed', { name: tab.title }));
       x.innerHTML = icon('x', 13);
       x.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -419,11 +540,11 @@ async function closeTab(g, tabId) {
   if (!tab) return;
 
   if (tab.dirty) {
-    const ok = await ask(`「${tab.title}」有未保存的修改，确定要关闭吗？`, {
-      title: '未保存的修改',
+    const ok = await ask(t('dlg.unsaved.close', { name: tab.title }), {
+      title: t('dlg.unsaved.title'),
       kind: 'warning',
-      okLabel: '放弃修改并关闭',
-      cancelLabel: '取消',
+      okLabel: t('dlg.unsaved.discard'),
+      cancelLabel: t('dlg.cancel'),
     });
     if (!ok) return;
   }
@@ -479,7 +600,7 @@ async function openPath(path, opts = {}) {
   try {
     doc = await invoke('read_text_file', { path });
   } catch (err) {
-    await ask(`打开失败：${err}`, { title: '错误', kind: 'error', okLabel: '好' });
+    await ask(t('dlg.openFailed', { err }), { title: t('dlg.error'), kind: 'error', okLabel: t('dlg.ok') });
     return null;
   }
   if (!doc) return null;
@@ -501,7 +622,7 @@ async function openPath(path, opts = {}) {
 async function openFileDialog() {
   const picked = await openDialog({
     multiple: false,
-    filters: [{ name: 'Markdown 文档', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'rmd', 'qmd'] }],
+    filters: [{ name: t('filter.markdown'), extensions: ['md', 'markdown', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'rmd', 'qmd'] }],
   });
   if (typeof picked === 'string') openPath(picked);
 }
@@ -735,7 +856,7 @@ async function render(g = activeGroup()) {
   try {
     html = renderMarkdown(text);
   } catch (err) {
-    g.dom.preview.textContent = `渲染出错：${err?.message || err}`;
+    g.dom.preview.textContent = t('dlg.renderFailed', { err: err?.message || err });
     return;
   }
   if (seq !== g.renderSeq) return;
@@ -747,7 +868,7 @@ async function render(g = activeGroup()) {
     // 只要出现过 '<'（哪怕只是 `a < b`），就老老实实消毒。
     frag = text.includes('<') ? sanitize(html) : parseTrusted(html);
   } catch (err) {
-    g.dom.preview.textContent = `内容消毒失败：${err?.message || err}`;
+    g.dom.preview.textContent = t('dlg.sanitizeFailed', { err: err?.message || err });
     return;
   }
   if (seq !== g.renderSeq) return;
@@ -796,7 +917,7 @@ function buildOutline(g = activeGroup()) {
     dom.outlineList.appendChild(
       Object.assign(document.createElement('div'), {
         className: 'outline-empty',
-        textContent: tab ? '当前文档没有标题。' : '还没有打开文档。',
+        textContent: t(tab ? 'outline.empty' : 'outline.noDoc'),
       }),
     );
     return;
@@ -856,8 +977,8 @@ function updateStats(line, col) {
 
   // 行数：编辑器在时 O(1) 直接问；阅读模式用缓存值
   const lines = g.editor ? g.editor.lineCount() : tab.stats.lines;
-  dom.statLines.textContent = `行 ${lines}`;
-  dom.statChars.textContent = `字 ${tab.stats.words}`;
+  dom.statLines.textContent = t('stat.lines', { n: lines });
+  dom.statChars.textContent = t('stat.words', { n: tab.stats.words });
   dom.statCursor.textContent = line != null ? `${line}:${col}` : '';
 
   const legacy = tab.encoding !== 'utf-8';
@@ -874,7 +995,7 @@ function updateFilename() {
     dom.filename.textContent = fileName(tab.path) || tab.title;
     dom.filename.title = tab.path || tab.title;
   } else {
-    dom.filename.textContent = '未打开文件';
+    dom.filename.textContent = t('tb.noFile');
     dom.filename.title = '';
   }
 }
@@ -893,7 +1014,7 @@ function updateFilename() {
 async function exportPdf() {
   const tab = activeTab();
   if (!tab?.path) {
-    await ask('请先打开一个文档再导出 PDF。', { title: '无法导出', kind: 'warning', okLabel: '好' });
+    await ask(t('dlg.noDocForPdf'), { title: t('dlg.warning'), kind: 'warning', okLabel: t('dlg.ok') });
     return;
   }
 
@@ -901,7 +1022,7 @@ async function exportPdf() {
   const stem = tab.path.replace(/\.[^.]+$/, '');
   const picked = await saveDialog({
     defaultPath: `${stem}.pdf`,
-    filters: [{ name: 'PDF 文档', extensions: ['pdf'] }],
+    filters: [{ name: t('filter.pdf'), extensions: ['pdf'] }],
   });
   if (!picked) return;
 
@@ -914,10 +1035,10 @@ async function exportPdf() {
     }
     await invoke('export_pdf', { path: picked });
   } catch (err) {
-    await ask(`导出 PDF 失败：${err?.message || err}`, {
-      title: '错误',
+    await ask(t('dlg.exportFailed', { err: err?.message || err }), {
+      title: t('dlg.error'),
       kind: 'error',
-      okLabel: '好',
+      okLabel: t('dlg.ok'),
     });
   } finally {
     cleanup();
@@ -953,7 +1074,7 @@ async function saveTab(g, tab) {
     }
     return true;
   } catch (err) {
-    await ask(`保存失败：${err}`, { title: '错误', kind: 'error', okLabel: '好' });
+    await ask(t('dlg.saveFailed', { err }), { title: t('dlg.error'), kind: 'error', okLabel: t('dlg.ok') });
     return false;
   }
 }
@@ -964,8 +1085,8 @@ async function saveFile(forceAs = false, g = activeGroup()) {
 
   if (!tab.path || forceAs) {
     const picked = await saveDialog({
-      defaultPath: tab.path || '未命名.md',
-      filters: [{ name: 'Markdown 文档', extensions: ['md'] }],
+      defaultPath: tab.path || t('save.untitled'),
+      filters: [{ name: t('filter.markdown'), extensions: ['md'] }],
     });
     if (!picked) return false;
     tab.path = picked;
@@ -1078,15 +1199,18 @@ function paintZenButton() {
   if (!btn) return;
   btn.innerHTML = icon(zen.on ? 'minimize' : 'maximize', 17);
   btn.classList.toggle('is-on', zen.on);
-  btn.dataset.tip = zen.on ? '退出 Zen 模式 · Esc' : 'Zen 模式 · Ctrl+Shift+Z';
+  btn.dataset.tip = t(zen.on ? 'tb.zen.off' : 'tb.zen.on');
 }
 
 /**
  * 进出 zen。
  *
- * 「此时如果最大化，应当触发全屏」—— 最大化仍然留着一条窗口边框与标题栏区域，
+ * 「此时如果最大化，应当触发全屏」—— 最大化仍然留着一条窗口边框，
  * 和「全是内容」是矛盾的，所以进入 zen 时若窗口是最大化状态，直接切真全屏。
- * 两者都恢复原状：退出时先退全屏、再把装饰加回来。
+ * 退出时把全屏还回去。
+ *
+ * 不再碰 `setDecorations`：窗口本身就是无边框的（decorations: false），
+ * 早先在这里「退出 zen 时恢复装饰」会把系统标题栏凭空加回来。
  */
 async function setZen(on) {
   if (on === zen.on) return;
@@ -1105,17 +1229,13 @@ async function setZen(on) {
     const win = getCurrentWindow();
     if (on) {
       const maximized = await win.isMaximized();
-      await win.setDecorations(false);
       if (maximized) {
         zen.fullscreen = true;
         await win.setFullscreen(true);
       }
-    } else {
-      if (zen.fullscreen) {
-        await win.setFullscreen(false);
-        zen.fullscreen = false;
-      }
-      await win.setDecorations(true);
+    } else if (zen.fullscreen) {
+      await win.setFullscreen(false);
+      zen.fullscreen = false;
     }
   } catch (err) {
     // 非 Tauri 环境（浏览器里做 UI 调试）没有窗口 API：zen 的视觉部分照样成立
@@ -1438,6 +1558,9 @@ async function openDefaultAppsSettings() {
 async function init() {
   try {
     loadSettings();
+    // 语言要最先落地：后面每一步渲染出来的文案都依赖它
+    applyLocale();
+    applyWindowGlass();
     paintIcons();
 
     // 主题深链接：?theme=dusk 可直接以指定主题打开，方便调试与分享同一套排版
@@ -1460,7 +1583,9 @@ async function init() {
     bindDragDrop();
     bindZoomWheel();
     bindZenReveal();
+    bindWindowControls();
     paintZenButton();
+    applyLocale();
 
     settingsModal = initSettingsModal({
       onChange: (reason) => {
@@ -1470,6 +1595,12 @@ async function init() {
           saveSettings({ fontPreset: reason.split(':')[1] });
         } else if (reason === 'tabLayout') {
           applyTabLayout();
+        } else if (reason === 'windowGlass') {
+          applyWindowGlass();
+          return; // 只影响底色，不必重跑主题与大纲
+        } else if (reason === 'locale') {
+          applyLocale();
+          return;
         }
         applyThemes();
         applyOutline();
@@ -1533,6 +1664,10 @@ async function init() {
         zoneForPosition,
         paintDropZone,
         hideDropZone,
+        // 语言与窗口玻璃：无头 QA 要能直接驱动
+        applyLocale,
+        applyWindowGlass,
+        getLocale,
       };
     }
   } catch (err) {

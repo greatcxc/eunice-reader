@@ -19,15 +19,21 @@
 import { DOC_THEMES, DOC_THEME_TABS } from '../lib/doc-themes.js';
 import { FONT_PRESETS, FONT_CATEGORIES } from '../lib/fonts.js';
 import { getSettings, saveSettings, recentEntries } from '../lib/store.js';
+import { t, pick, isEnglish, LOCALE_OPTIONS } from '../lib/i18n.js';
 import { icon } from './icons.js';
 
 
 /* ------------------------------------------------------------------ */
-/* 缩略图用的真实中文内容                                              */
+/* 缩略图用的真实内容                                                  */
 /* ------------------------------------------------------------------ */
 
-/** 主题预览用的一段真实内容：要同时体现标题、正文、强调、引用 */
-const DOC_SAMPLE = `<h3>季度营收</h3><p>本月<strong>增长 12%</strong>，主要来自<a>欧洲市场</a>。订单量创下新高。</p><blockquote>订单量创新高</blockquote>`;
+/**
+ * 主题预览用的一段真实内容：要同时体现标题、正文、强调、引用。
+ * 跟着界面语言走 —— 英文界面里塞一段中文，缩略图会变成「看字形」而不是「看配色」。
+ */
+const DOC_SAMPLE_ZH = `<h3>季度营收</h3><p>本月<strong>增长 12%</strong>，主要来自<a>欧洲市场</a>。订单量创下新高。</p><blockquote>订单量创新高</blockquote>`;
+const DOC_SAMPLE_EN = `<h3>Quarterly revenue</h3><p>Up <strong>12%</strong> this month, mostly from <a>Europe</a>. Orders hit a new high.</p><blockquote>Orders hit a new high</blockquote>`;
+const docSample = () => (isEnglish() ? DOC_SAMPLE_EN : DOC_SAMPLE_ZH);
 
 /**
  * 主题缩略图。
@@ -56,7 +62,7 @@ function mountDocThumb(host, theme) {
       blockquote { margin: 0; padding: 4px 9px; background: ${quoteBg};
                    border-left: 3px solid ${quoteBar}; color: ${quoteInk}; font-size: 11.5px; }
     </style>
-    <div class="t">${DOC_SAMPLE}</div>
+    <div class="t">${docSample()}</div>
   `;
 }
 
@@ -261,13 +267,13 @@ function recentRow(entry, actions, refresh) {
   ]);
   open.addEventListener('click', () => actions.onOpenRecent(path));
 
-  const pinBtn = rbtn(pinned ? 'pin-off' : 'pin', pinned ? '取消固定' : '固定到顶部', pinned, () => {
+  const pinBtn = rbtn(pinned ? 'pin-off' : 'pin', t(pinned ? 'set.unpin' : 'set.pin'), pinned, () => {
     if (pinned) actions.onUnpin(path);
     else actions.onPin(path);
     refresh();
   });
 
-  const rmBtn = rbtn('x', pinned ? '取消固定并移除' : '从列表移除', false, () => {
+  const rmBtn = rbtn('x', t(pinned ? 'set.removePinned' : 'set.remove'), false, () => {
     actions.onRemoveRecent(path);
     refresh();
   });
@@ -292,29 +298,29 @@ function recentSection(actions) {
 
     const list = el('div', { className: 'recent-list' });
     if (!entries.length) {
-      list.appendChild(el('p', { className: 'recent-empty' }, ['还没有打开过文件。']));
+      list.appendChild(el('p', { className: 'recent-empty' }, [t('set.recent.empty')]));
     } else {
       for (const entry of entries) list.appendChild(recentRow(entry, actions, refresh));
     }
 
-    const openBtn = el('button', { className: 'btn-primary', type: 'button' }, ['打开文件…']);
+    const openBtn = el('button', { className: 'btn-primary', type: 'button' }, [t('set.recent.open')]);
     openBtn.addEventListener('click', () => actions.onOpenFile?.());
 
     const clearBtn = el('button', { className: 'clear-btn', type: 'button' }, [
-      pinnedCount ? '清空未固定' : '清空记录',
+      pinnedCount ? t('set.recent.clearLoose') : t('set.recent.clear'),
     ]);
     clearBtn.disabled = looseCount === 0;
-    clearBtn.title = pinnedCount ? '已固定的条目会保留' : '清空全部记录';
+    clearBtn.title = t('set.recent.clearTip');
     clearBtn.addEventListener('click', () => {
       actions.onClearRecent();
       refresh();
     });
 
     const hint = pinnedCount
-      ? `固定的 ${pinnedCount} 条不会被「清空未固定」移除。`
-      : '点条目右侧的图钉可固定到顶部，固定项不会被清空。';
+      ? t('set.recent.pinnedHint', { n: pinnedCount })
+      : t('set.recent.hint');
 
-    return section('最近打开', {
+    return section(t('set.sec.recent'), {
       badge: `${entries.length}`,
       hint,
       children: [list, el('div', { className: 'recent-actions' }, [openBtn, clearBtn])],
@@ -349,79 +355,79 @@ export function renderSettings(container, onChange, actions) {
   function paintThemes() {
     themeChips.innerHTML = '';
 
-    const tabs = DOC_THEME_TABS.map((t) => ({ ...t }));
-    if (starred.length) tabs.unshift({ id: 'starred', label: `★ 收藏 ${starred.length}` });
+    // 注意：这里用 th 而不是 t —— t 是 i18n 的取词函数，局部变量不能把它盖掉
+    const tabs = DOC_THEME_TABS.map((tab) => ({ ...tab }));
+    if (starred.length) tabs.unshift({ id: 'starred', label: t('set.themeStarred', { n: starred.length }) });
 
-    for (const t of tabs) {
-      const b = el('button', { className: 'chip-tab' + (t.id === themeTab ? ' is-on' : ''), type: 'button' }, [
-        t.label,
+    for (const tab of tabs) {
+      const b = el('button', { className: 'chip-tab' + (tab.id === themeTab ? ' is-on' : ''), type: 'button' }, [
+        pick(tab.label, tab.labelEn),
       ]);
       b.addEventListener('click', () => {
-        themeTab = t.id;
+        themeTab = tab.id;
         paintThemes();
       });
       themeChips.appendChild(b);
     }
 
     themeGrid.innerHTML = '';
-    const list = DOC_THEMES.filter((t) => {
+    const list = DOC_THEMES.filter((th) => {
       if (themeTab === 'all') return true;
-      if (themeTab === 'light') return !t.dark;
-      if (themeTab === 'dark') return t.dark;
-      if (themeTab === 'starred') return starred.includes(t.id);
-      return t.group === themeTab;
+      if (themeTab === 'light') return !th.dark;
+      if (themeTab === 'dark') return th.dark;
+      if (themeTab === 'starred') return starred.includes(th.id);
+      return th.group === themeTab;
     });
 
     if (!list.length) {
-      themeGrid.appendChild(
-        el('div', { className: 'theme-empty' }, ['这个分类下暂时没有主题，换个分类看看。']),
-      );
+      themeGrid.appendChild(el('div', { className: 'theme-empty' }, [t('set.themeEmpty')]));
       return;
     }
 
-    for (const t of list) {
+    for (const th of list) {
+      const label = pick(th.label, th.labelEn);
       const preview = el('div', { className: 'doc-preview' });
-      mountDocThumb(preview, t);
+      mountDocThumb(preview, th);
 
-      const isStar = starred.includes(t.id);
+      const isStar = starred.includes(th.id);
       const star = el('button', {
         className: 'doc-star' + (isStar ? ' is-on' : ''),
         type: 'button',
-        title: isStar ? '取消收藏' : '收藏',
-        'aria-label': isStar ? '取消收藏' : '收藏',
+        title: t(isStar ? 'set.unstar' : 'set.star'),
+        'aria-label': t(isStar ? 'set.unstar' : 'set.star'),
       });
       star.innerHTML = icon('star', 14);
 
       const card = el(
         'div',
-        { className: 'doc-card' + (t.id === s.docTheme ? ' is-on' : ''), title: t.label },
+        { className: 'doc-card' + (th.id === s.docTheme ? ' is-on' : ''), title: label },
         [
           preview,
           el('div', { className: 'doc-meta' }, [
             el('span', { className: 'doc-dot' }),
             el('div', { className: 'doc-text' }, [
-              el('div', { className: 'doc-name' }, [t.label]),
-              el('div', { className: 'doc-note' }, [t.note]),
+              el('div', { className: 'doc-name' }, [label]),
+              el('div', { className: 'doc-note' }, [pick(th.note, th.noteEn)]),
             ]),
             star,
             el('span', { className: 'doc-check' }),
           ]),
         ],
       );
-      card.querySelector('.doc-dot').style.background = themeSwatch(t);
-      card.querySelector('.doc-dot').style.borderColor = readVar('--rule', t);
+      card.querySelector('.doc-dot').style.background = themeSwatch(th);
+      card.querySelector('.doc-dot').style.borderColor = readVar('--rule', th);
       card.querySelector('.doc-check').innerHTML = icon('check', 14);
 
       card.addEventListener('click', () => {
-        saveSettings({ docTheme: t.id });
-        onChange('docTheme:' + t.id);
+        saveSettings({ docTheme: th.id });
+        onChange('docTheme:' + th.id);
         themeGrid.querySelectorAll('.doc-card').forEach((c) => c.classList.remove('is-on'));
         card.classList.add('is-on');
       });
 
       star.addEventListener('click', (e) => {
         e.stopPropagation();
-        starred = starred.includes(t.id) ? starred.filter((x) => x !== t.id) : [...starred, t.id];
+        starred = starred.includes(th.id) ? starred.filter((x) => x !== th.id) : [...starred, th.id];
         saveSettings({ starredThemes: starred });
         paintThemes();
       });
@@ -433,9 +439,9 @@ export function renderSettings(container, onChange, actions) {
   paintThemes();
 
   container.appendChild(
-    section('正文主题', {
-      badge: `${DOC_THEMES.length} 款`,
-      hint: '控制整篇文档的视觉：背景、正文、标题、引用块、表格、代码块底色全部联动。点一下即可在左侧文档中看到效果。',
+    section(t('set.sec.theme'), {
+      badge: t('set.theme.count', { n: DOC_THEMES.length }),
+      hint: t('set.theme.hint'),
       children: [el('div', { className: 'theme-toolbar' }, [themeChips]), themeGrid],
     }),
   );
@@ -482,9 +488,9 @@ export function renderSettings(container, onChange, actions) {
   paintFonts();
 
   container.appendChild(
-    section('正文字体', {
-      badge: `${FONT_PRESETS.length} 套`,
-      hint: '中文字体内置完整字符集，任何汉字都不会回退到系统字体导致字形突变。',
+    section(t('set.sec.font'), {
+      badge: t('set.font.count', { n: FONT_PRESETS.length }),
+      hint: t('set.font.hint'),
       children: [el('div', { className: 'theme-toolbar' }, [fontChips]), fontGrid],
     }),
   );
@@ -498,7 +504,7 @@ export function renderSettings(container, onChange, actions) {
   const scaleOf = (v) => Math.round(v * s.zoom * 10) / 10;
 
   const zoomRow = rowLabeled(
-    '显示缩放',
+    t('set.zoom'),
     slider(zoomPct, 50, 300, 5, (v) => `${v}%`, (v) => {
       actions.onZoom(v / 100);
       onChange('zoom');
@@ -506,7 +512,7 @@ export function renderSettings(container, onChange, actions) {
   );
   // 「复位」直接驱动滑杆自己的 input 事件，复用它的数值/填充重绘逻辑
   const zoomInput = zoomRow.querySelector('input[type="range"]');
-  const zoomReset = el('button', { className: 'clear-btn mini', type: 'button', title: '回到 100%' }, ['100%']);
+  const zoomReset = el('button', { className: 'clear-btn mini', type: 'button', title: t('set.zoomReset') }, ['100%']);
   zoomReset.addEventListener('click', () => {
     zoomInput.value = '100';
     zoomInput.dispatchEvent(new Event('input'));
@@ -514,28 +520,34 @@ export function renderSettings(container, onChange, actions) {
   zoomRow.querySelector('.row-body').appendChild(zoomReset);
 
   container.appendChild(
-    section('排版微调', {
-      hint: `字号 × 缩放 = 实际显示：正文 ${s.fontSize} px × ${zoomPct}% = ${scaleOf(s.fontSize)} px，行宽 ${s.contentWidth} px → ${scaleOf(s.contentWidth)} px。缩放对正文、代码块、表格与编辑区同时生效。`,
+    section(t('set.sec.typo'), {
+      hint: t('set.typo.hint', {
+        size: s.fontSize,
+        zoom: zoomPct,
+        effSize: scaleOf(s.fontSize),
+        width: s.contentWidth,
+        effWidth: scaleOf(s.contentWidth),
+      }),
       children: [
         zoomRow,
-        rowLabeled('正文字号', slider(s.fontSize, 12, 24, 1, (v) => v + ' px', (v) => {
+        rowLabeled(t('set.fontSize'), slider(s.fontSize, 12, 24, 1, (v) => v + ' px', (v) => {
           saveSettings({ fontSize: v });
           onChange('typography');
         })),
-        rowLabeled('行高', slider(s.lineHeight, 1.4, 2.6, 0.1, (v) => v.toFixed(1), (v) => {
+        rowLabeled(t('set.lineHeight'), slider(s.lineHeight, 1.4, 2.6, 0.1, (v) => v.toFixed(1), (v) => {
           saveSettings({ lineHeight: v });
           onChange('typography');
         })),
-        rowLabeled('正文宽度', slider(s.contentWidth, 600, 1600, 20, (v) => v + ' px', (v) => {
+        rowLabeled(t('set.width'), slider(s.contentWidth, 600, 1600, 20, (v) => v + ' px', (v) => {
           saveSettings({ contentWidth: v });
           onChange('typography');
         })),
         rowLabeled(
-          '界面透明度',
+          t('set.glass'),
           select(s.glassLevel || 'normal', [
-            ['solid', '实色（最清晰）'],
-            ['normal', '半透明（默认）'],
-            ['strong', '强通透'],
+            ['solid', t('set.glass.solid')],
+            ['normal', t('set.glass.normal')],
+            ['strong', t('set.glass.strong')],
           ], (v) => {
             saveSettings({ glassLevel: v });
             onChange('glass:' + v);
@@ -548,23 +560,42 @@ export function renderSettings(container, onChange, actions) {
   /* ================= 5. 行为 ================= */
 
   container.appendChild(
-    section('行为', {
+    section(t('set.sec.behavior'), {
       children: [
+        // 语言：默认跟随系统（WebView2 的 navigator.language 就是 Windows 显示语言）
         rowLabeled(
-          '标签布局',
+          t('set.locale'),
+          select(s.locale || 'auto', LOCALE_OPTIONS.map(([id, zh, en]) => [id, pick(zh, en)]), (v) => {
+            saveSettings({ locale: v });
+            onChange('locale');
+          }),
+        ),
+        // 全屏毛玻璃：窗口半透明 + 系统 acrylic 模糊，默认开
+        rowLabeled(
+          t('set.windowGlass'),
+          select(String(s.windowGlass !== false), [
+            ['true', t('set.windowGlass.on')],
+            ['false', t('set.windowGlass.off')],
+          ], (v) => {
+            saveSettings({ windowGlass: v === 'true' });
+            onChange('windowGlass');
+          }),
+        ),
+        rowLabeled(
+          t('set.tabLayout'),
           select(s.tabLayout || 'top', [
-            ['top', '顶部（顶栏下方一条）'],
-            ['left', '左侧（正文左边一列）'],
+            ['top', t('set.tabLayout.top')],
+            ['left', t('set.tabLayout.left')],
           ], (v) => {
             saveSettings({ tabLayout: v });
             onChange('tabLayout');
           }),
         ),
-        checkbox('显示大纲侧栏', s.showOutline, (v) => {
+        checkbox(t('set.outline.show'), s.showOutline, (v) => {
           saveSettings({ showOutline: v });
           onChange('outline');
         }),
-        checkbox('编辑时自动保存', s.autoSave, (v) => {
+        checkbox(t('set.autosave'), s.autoSave, (v) => {
           saveSettings({ autoSave: v });
           onChange('autoSave');
         }),
@@ -580,17 +611,17 @@ export function renderSettings(container, onChange, actions) {
   if (actions.readAssocStatus) {
     const stateLine = el('div', { className: 'assoc-state' }, [
       el('span', { className: 'dot' }),
-      el('span', {}, ['正在检查…']),
+      el('span', {}, [t('set.assoc.checking')]),
     ]);
     const actionsRow = el('div', { className: 'recent-actions' });
-    const repairBtn = el('button', { className: 'clear-btn', type: 'button' }, ['修复图标与右键菜单']);
+    const repairBtn = el('button', { className: 'clear-btn', type: 'button' }, [t('set.assoc.repair')]);
     // 状态未知之前先不劝（异步返回后由 paint() 决定显隐）
-    const defaultBtn = el('button', { className: 'btn-primary', type: 'button', hidden: true }, ['设为默认打开方式']);
+    const defaultBtn = el('button', { className: 'btn-primary', type: 'button', hidden: true }, [t('set.assoc.makeDefault')]);
     actionsRow.appendChild(repairBtn);
     actionsRow.appendChild(defaultBtn);
 
-    const secNode = section('文件关联', {
-      hint: '资源管理器里 .md 的图标、右键菜单「使用 Eunice Reader 打开」，以及「打开方式」候选列表。',
+    const secNode = section(t('set.sec.assoc'), {
+      hint: t('set.assoc.hint'),
       children: [stateLine, actionsRow],
     });
     container.appendChild(secNode);
@@ -600,7 +631,7 @@ export function renderSettings(container, onChange, actions) {
         stateLine.className = 'assoc-state';
         stateLine.replaceChildren(
           el('span', { className: 'dot' }),
-          el('span', {}, ['当前环境读不到注册表（开发模式），关联设置不可用。']),
+          el('span', {}, [t('set.assoc.unavailable')]),
         );
         defaultBtn.hidden = true;
         repairBtn.disabled = true;
@@ -608,13 +639,13 @@ export function renderSettings(container, onChange, actions) {
       }
       const ours = st.isDefault;
       stateLine.className = 'assoc-state ' + (ours ? 'is-ok' : 'is-warn');
-      const label = ours ? 'Eunice Reader' : st.displayName || st.progId || '其他程序';
+      const label = ours ? 'Eunice Reader' : st.displayName || st.progId || t('set.assoc.other');
       const parts = [
         el('span', { className: 'dot' }),
-        el('span', {}, [ours ? `默认程序：${label}` : `当前 .md 默认程序是「${label}」，不是 Eunice Reader`]),
+        el('span', {}, [ours ? t('set.assoc.isDefault', { name: label }) : t('set.assoc.notDefault', { name: label })]),
       ];
-      if (!st.iconOk) parts.push(el('span', {}, ['（图标待修复）']));
-      if (st.userChoice && !ours) parts.push(el('span', {}, ['（由系统「默认应用」决定，程序改不了）']));
+      if (!st.iconOk) parts.push(el('span', {}, [t('set.assoc.iconStale')]));
+      if (st.userChoice && !ours) parts.push(el('span', {}, [t('set.assoc.userChoice')]));
       stateLine.replaceChildren(...parts);
       // 已经是默认应用时就不必再劝一次
       defaultBtn.hidden = ours;
@@ -641,8 +672,8 @@ export function renderSettings(container, onChange, actions) {
         stateLine.appendChild(
           el('span', {}, [
             opened
-              ? '（已打开系统「默认应用」设置：把 .md 指给 Eunice Reader 即可）'
-              : '（请到系统「默认应用」里把 .md 指给 Eunice Reader）',
+              ? t('set.assoc.openedTip')
+              : t('set.assoc.openManual'),
           ]),
         );
       }
@@ -657,20 +688,20 @@ export function renderSettings(container, onChange, actions) {
   /* ================= 快捷键 ================= */
 
   const KEYS = [
-    ['Ctrl + =', '放大显示'],
-    ['Ctrl + -', '缩小显示'],
-    ['Ctrl + 0', '缩放复位 100%'],
-    ['Ctrl + 滚轮', '连续缩放'],
-    ['Ctrl + Shift + Z', 'Zen 模式（Esc 退出）'],
-    ['Ctrl + O', '打开文件（新标签）'],
-    ['Ctrl + S', '保存'],
-    ['Ctrl + Shift + S', '另存为'],
-    ['Ctrl + Shift + E', '导出 PDF'],
-    ['Ctrl + 1 / 2 / 3', '阅读 / 分栏 / 编辑'],
-    ['Ctrl + B', '大纲侧栏'],
-    ['Ctrl + Shift + D', '明暗切换'],
-    ['Ctrl + ,', '本设置'],
-    ['Ctrl + F', '搜索'],
+    ['Ctrl + =', t('keys.zoomIn')],
+    ['Ctrl + -', t('keys.zoomOut')],
+    ['Ctrl + 0', t('keys.zoomReset')],
+    ['Ctrl + 滚轮', t('keys.zoomWheel')],
+    ['Ctrl + Shift + Z', t('keys.zen')],
+    ['Ctrl + O', t('keys.open')],
+    ['Ctrl + S', t('keys.save')],
+    ['Ctrl + Shift + S', t('keys.saveas')],
+    ['Ctrl + Shift + E', t('keys.pdf')],
+    ['Ctrl + 1 / 2 / 3', t('keys.views')],
+    ['Ctrl + B', t('keys.outline')],
+    ['Ctrl + Shift + D', t('keys.dark')],
+    ['Ctrl + ,', t('keys.settings')],
+    ['Ctrl + F', t('keys.search')],
   ];
 
   const keyTable = el('div', { className: 'key-table' });
@@ -682,7 +713,7 @@ export function renderSettings(container, onChange, actions) {
       ]),
     );
   }
-  container.appendChild(section('快捷键', { children: [keyTable] }));
+  container.appendChild(section(t('set.sec.keys'), { children: [keyTable] }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -695,7 +726,8 @@ export function initSettingsModal(actions) {
   drawer = document.getElementById('settings-modal');
   const scrim = document.getElementById('drawer-scrim');
 
-  const open = () => {
+  /** 只重画内容，不动抽屉的开合状态（切语言时要保持滚动位置与开合） */
+  const render = () => {
     const body = document.getElementById('settings-body');
     try {
       renderSettings(body, actions.onChange, actions);
@@ -703,6 +735,10 @@ export function initSettingsModal(actions) {
       console.error('[settings] render failed', err);
       body.textContent = `设置渲染失败：\n${err?.stack || err}`;
     }
+  };
+
+  const open = () => {
+    render();
     drawer.hidden = true;
     document.body.classList.add('settings-open');
     requestAnimationFrame(() => {
@@ -728,5 +764,11 @@ export function initSettingsModal(actions) {
     if (e.key === 'Escape' && document.body.classList.contains('settings-open')) close();
   });
 
-  return { open, close, toggle, isOpen: () => document.body.classList.contains('settings-open') };
+  return {
+    open,
+    close,
+    toggle,
+    refresh: render,
+    isOpen: () => document.body.classList.contains('settings-open'),
+  };
 }

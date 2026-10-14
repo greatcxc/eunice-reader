@@ -55,10 +55,33 @@
 
   // 标签布局走真实设置路径；显式传 layout 时只看参数，
   // 免得被上一次运行留在 localStorage 里的值影响（同一 profile 会复用）
+  const store = await import('/src/lib/store.js');
   if (q.get('layout')) {
-    const { saveSettings } = await import('/src/lib/store.js');
-    saveSettings({ tabLayout: q.get('layout') });
+    store.saveSettings({ tabLayout: q.get('layout') });
     mr.applyTabLayout();
+  }
+  if (q.get('locale')) {
+    store.saveSettings({ locale: q.get('locale') });
+    mr.applyLocale();
+  }
+  if (q.get('glass')) {
+    store.saveSettings({ windowGlass: q.get('glass') === '1' });
+    mr.applyWindowGlass();
+  }
+  // 模拟「窗口后面有东西」：玻璃模式要靠它才能看出来透的是什么
+  if (q.get('behind')) {
+    document.documentElement.style.setProperty('background', 'transparent');
+    document.body.style.background = 'transparent';
+    const art = document.createElement('div');
+    art.id = 'qa-behind';
+    art.style.cssText =
+      'position:fixed;inset:0;z-index:-1;' +
+      'background:' +
+      'radial-gradient(600px 400px at 18% 22%, #ff9a5a 0%, transparent 60%),' +
+      'radial-gradient(700px 500px at 82% 30%, #4f7cff 0%, transparent 62%),' +
+      'radial-gradient(800px 600px at 55% 88%, #22c58b 0%, transparent 60%),' +
+      'linear-gradient(140deg, #2b2350, #14161f);';
+    document.body.appendChild(art);
   }
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -170,6 +193,12 @@
 
   await wait(1600); // 等渲染 + 字数统计（400ms 防抖 + 空闲回调）落定
 
+  // ?settings=1 打开设置抽屉（点真实按钮），用来核对英文界面下的面板
+  if (q.get('settings')) {
+    document.getElementById('btn-settings').click();
+    await wait(400);
+  }
+
   if (q.get('closetab')) {
     const g = mr.activeGroup();
     const target = q.get('closetab') === 'active' ? mr.activeTab(g) : g.tabs[0];
@@ -215,6 +244,21 @@
       'cmText=' + JSON.stringify((document.querySelector('.cm-content')?.textContent || '').slice(0, 12)),
       'statusLines=' + (document.getElementById('stat-lines') || {}).textContent,
       'titlebarName=' + (document.getElementById('lbl-filename') || {}).textContent,
+      // ── 语言 / 窗口控制 / 玻璃 ──
+      'locale=' + document.documentElement.dataset.locale,
+      'lang=' + document.documentElement.lang,
+      'emptyTitle=' + ((document.querySelector('.empty-title') || {}).textContent || '').slice(0, 22),
+      'secTitles=' + [...document.querySelectorAll('.sec-title')].map((n) => n.textContent).join('/').slice(0, 80),
+      'zoomRow=' + ((document.querySelector('.row-label') || {}).textContent || ''),
+      'winButtons=' + document.querySelectorAll('.win-controls .win-btn').length,
+      'winMaxIcon=' + (document.getElementById('btn-win-max')?.innerHTML.includes('rect') ? 'square' : 'other'),
+      'resizeZones=' + document.querySelectorAll('#resize-handles .rz').length,
+      'dragRegion=' + (document.querySelector('.titlebar')?.getAttribute('data-tauri-drag-region') || 'none'),
+      'droppable=' + [...document.querySelectorAll('.win-btn')].map((b) => b.tagName.toLowerCase()).join(','),
+      'windowGlass=' + document.documentElement.dataset.windowGlass,
+      'paperAlpha=' + cv('--paper-alpha'),
+      'uiContent=' + cv('--ui-content'),
+      'tbTip=' + (document.getElementById('btn-open')?.dataset.tip || ''),
       'q=' + location.search,
     ].join(' | ');
   }
