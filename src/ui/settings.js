@@ -18,7 +18,7 @@
 
 import { DOC_THEMES, DOC_THEME_TABS } from '../lib/doc-themes.js';
 import { FONT_PRESETS, FONT_CATEGORIES } from '../lib/fonts.js';
-import { getSettings, saveSettings, recentEntries } from '../lib/store.js';
+import { getSettings, saveSettings, recentEntries, normalizeGlass } from '../lib/store.js';
 import { t, pick, isEnglish, LOCALE_OPTIONS } from '../lib/i18n.js';
 import { icon } from './icons.js';
 
@@ -570,14 +570,15 @@ export function renderSettings(container, onChange, actions) {
             onChange('locale');
           }),
         ),
-        // 全屏毛玻璃：窗口半透明 + 系统 acrylic 模糊，默认开
+        // 全屏毛玻璃：窗口半透明 + 系统 acrylic 模糊，默认中等
         rowLabeled(
           t('set.windowGlass'),
-          select(String(s.windowGlass !== false), [
-            ['true', t('set.windowGlass.on')],
-            ['false', t('set.windowGlass.off')],
+          select(normalizeGlass(s.windowGlass), [
+            ['off', t('set.windowGlass.off')],
+            ['medium', t('set.windowGlass.medium')],
+            ['strong', t('set.windowGlass.strong')],
           ], (v) => {
-            saveSettings({ windowGlass: v === 'true' });
+            saveSettings({ windowGlass: v });
             onChange('windowGlass');
           }),
         ),

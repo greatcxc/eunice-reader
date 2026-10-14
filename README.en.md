@@ -63,9 +63,9 @@ most of which is fonts.
   starring
 - **11 font presets** — Noto Sans/Serif SC, LXGW WenKai, LXGW Neo ZhiSong, Swei Gothic, Sarasa Mono SC,
   Glow Sans, plus Latin pairings with Inter / EB Garamond / JetBrains Mono
-- **Full-window glass** (on by default) — the window itself is transparent and Windows *acrylic* blurs
-  whatever is behind it; the interface paints itself translucent so that blur shows through. You can
-  faintly see the colour blocks of the windows below while text stays sharp. One switch turns it opaque
+- **Full-window glass** (three levels, default *medium*) — the window itself is transparent and Windows
+  *acrylic* blurs the desktop behind it; the interface paints itself translucent so that blur shows
+  through. You can faintly see the colour blocks of the windows below while text stays sharp
 - **Frameless window** — the OS title bar is gone; minimise / maximise / close and eight resize edges
   are drawn in the app's own style. Double-clicking the top bar maximises or restores
 - **Zen mode** (`Ctrl+Shift+Z`) — content only. The chrome slides back in when the pointer reaches the
@@ -112,9 +112,11 @@ KaTeX 253 KB + 29 KB CSS (a `$` appears), highlight.js 154 KB (code blocks, warm
 |---|---|
 | ![Left tab layout](docs/qa/app-tabs-left.png) | ![Zen mode](docs/qa/app-zen.png) |
 
-| Full-window glass (on) | Full-window glass (off) |
-|---|---|
-| ![Glass on](docs/qa/app-glass-on.png) | ![Glass off](docs/qa/app-glass-off.png) |
+Full-window glass, three levels (how much of the same colourful "desktop" shows through):
+
+| Off | Medium (default) | Strong |
+|---|---|---|
+| ![Glass off](docs/qa/app-glass-off.png) | ![Glass medium](docs/qa/app-glass-medium.png) | ![Glass strong](docs/qa/app-glass-strong.png) |
 
 English UI (follows the system language, or set it manually):
 
@@ -138,9 +140,17 @@ offers to download it.
 
 The window is **frameless** (no OS title bar): the top bar *is* the title bar — drag it, double-click to
 maximise/restore, and use the minimise / maximise / close buttons on its right. All four edges and
-corners resize the window. Full-window glass relies on Windows *acrylic*, which needs Windows 11 or
-Windows 10 1803+; on older builds it degrades to "translucent without blur" and can be switched off in
-Settings.
+corners resize the window. In Zen mode the chrome slides back in when the pointer comes within **28 px**
+of an edge.
+
+Full-window glass relies on Windows *acrylic*, which needs Windows 11 or Windows 10 1803+; on older
+builds it degrades to "translucent without blur" — set it to *Off* there.
+
+> One platform limitation worth knowing: **on Windows, ackdrop-filter stops working as soon as the
+> window is transparent** ([tauri#12804](https://github.com/tauri-apps/tauri/issues/12804),
+> [wails#2340](https://github.com/wailsapp/wails/issues/2340)). In the glass levels the top bar is
+> therefore blurred by system acrylic (the desktop behind the window), and the document is clipped
+> below the chrome so it no longer slides underneath it; choosing *Off* returns to a fully opaque look.
 
 **Two prompts you may see — neither is a bug:**
 

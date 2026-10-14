@@ -65,7 +65,10 @@
     mr.applyLocale();
   }
   if (q.get('glass')) {
-    store.saveSettings({ windowGlass: q.get('glass') === '1' });
+    // 接受挡位名（off/medium/strong），也兼容 1/0（分别等于 medium/off）
+    const raw = q.get('glass');
+    const level = raw === '1' ? 'medium' : raw === '0' ? 'off' : raw;
+    store.saveSettings({ windowGlass: level });
     mr.applyWindowGlass();
   }
   // 模拟「窗口后面有东西」：玻璃模式要靠它才能看出来透的是什么
@@ -114,6 +117,15 @@
     await open('D:\\fake\\market.md');
     await mr.setZen(true);
     document.body.classList.add('zen-top');       // 模拟鼠标移到顶边
+  } else if (state === 'zen-hot') {
+    // 验证「唤出热区」到底有多厚：把指针停在离心口 edge 像素处，看顶栏出不出来。
+    // 旧阈值是 6px（实际几乎够不着），现在是 28px。
+    await open('D:\\fake\\market.md');
+    await mr.setZen(true);
+    await wait(60);
+    const edge = Number(q.get('edge') || 20);
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: edge, clientX: 720, bubbles: true }));
+    await wait(80);
   } else if (state === 'drop') {
     await open('D:\\fake\\market.md');
     mr.paintDropZone(q.get('zone') || 'right');    // 模拟拖动中的落点提示
@@ -229,6 +241,7 @@
       'railW=' + Math.round((document.querySelector('.tabrail') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width),
       'zen=' + document.body.classList.contains('is-zen'),
       'zenTop=' + document.body.classList.contains('zen-top'),
+      'zenBottom=' + document.body.classList.contains('zen-bottom'),
       'dropHidden=' + document.getElementById('drop-overlay').hidden,
       'dropTarget=' + [...document.querySelectorAll('.dz.is-target')].map((d) => d.dataset.zone).join(','),
       'emptyState=' + [...document.querySelectorAll('.group.is-empty')].length,
@@ -258,6 +271,10 @@
       'windowGlass=' + document.documentElement.dataset.windowGlass,
       'paperAlpha=' + cv('--paper-alpha'),
       'uiContent=' + cv('--ui-content'),
+      // 玻璃挡位下正文应当被裁到界面层下方（否则会裸露着从玻璃条下面划过）
+      'previewClip=' + (document.querySelector('.pane-preview') ? getComputedStyle(document.querySelector('.pane-preview')).clipPath : 'n/a'),
+      // 窗口控制按钮在窗口变窄时会不会被压扁（曾经缩到 0 宽 → 中间的方框看不见）
+      'winBtnW=' + [...document.querySelectorAll('.win-btn')].map((b) => Math.round(b.getBoundingClientRect().width)).join('/'),
       'tbTip=' + (document.getElementById('btn-open')?.dataset.tip || ''),
       'q=' + location.search,
     ].join(' | ');

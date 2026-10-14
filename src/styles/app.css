@@ -2255,25 +2255,41 @@ body.is-zen .pane-preview {
    缩放由 #resize-handles 的 8 条热区 + startResizeDragging 承担。 */
 
 .win-controls {
+  /* flex: none 是关键：窗口控制一旦被当成可压缩的 flex 项，
+     窗口变窄时它们会被挤到 0 宽 —— 表现为「最小化和关闭还看得见，
+     中间那个方框没了」（方框全靠 1px 描边，最先消失）。
+     和 Windows 自己的标题栏按钮一样，这三个按钮永远不参与伸缩。 */
+  flex: none;
   display: flex;
   align-items: stretch;
   align-self: stretch;
   gap: 0;
   height: 100%;
-  margin-left: 4px;
+  margin-left: 6px;
+  padding-left: 4px;
+  border-left: 1px solid var(--line);
 }
 
 .win-btn {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
+  width: 44px;
+  min-width: 44px;
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--fg-2);
+  /* 玻璃挡位下这条按钮的背景不可预测（后面可能是任意桌面），
+     所以用对比度最高的前景色，而不是弱化的次要灰 */
+  color: var(--fg);
   cursor: default;
   transition: background 0.12s ease, color 0.12s ease;
+}
+
+/* 15px 的图标 + 加粗一点的描边：方框那种纯描边形状在浅底上最容易糊掉 */
+.win-btn .ic {
+  stroke-width: 2.2;
 }
 
 .win-btn:hover {
@@ -2293,6 +2309,17 @@ body.is-zen .pane-preview {
 
 .win-btn.win-close:active {
   background: #b93a3a;
+}
+
+/* 这三个按钮贴着窗口右缘，通用 tooltip 是居中弹出的，会被窗口裁掉一半 */
+.win-btn[data-tip]::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-3px);
+}
+
+.win-btn[data-tip]:hover::after {
+  transform: translateY(0);
 }
 
 /* ── 无边框窗口的缩放热区 ──
@@ -2348,48 +2375,93 @@ body.is-zen .pane-preview {
 /* ══════════════ 全屏毛玻璃 ══════════════
    两层叠加：
    1. 系统层：窗口 transparent + acrylic（tauri.conf.json 的 windowEffects），
-      由 DWM 把窗口后面的内容模糊掉；
-   2. 界面层：把界面底色换成半透明，让那层模糊透出来。
-   只做第 1 层是没用的 —— 界面不透明，玻璃后面什么都看不见。
+      DWM 把窗口后面的桌面模糊掉；
+   2. 界面层：界面底色半透明，让那层模糊透出来。只做第 1 层没用 ——
+      界面不透明，玻璃后面什么都看不见。
 
-   不透明度刻意留得比较高（纸面 0.86 / 面板 0.72）：
-   acrylic 在部分 Win10 上是不可用的，那时窗口就是「半透明糊在桌面上」，
-   底色太透会直接读不了字。 */
+   ── 一条绕不过去的平台限制，决定了下面所有写法 ──
+   Windows 上窗口一旦 `transparent: true`，Chromium 就**不再执行 backdrop-filter**
+   （Tauri #12804 / #12986、Wails #2340 都是这个结论）。
+   也就是说：顶栏/标签条不可能再去模糊「从它下面滚过的正文」，
+   它们能依靠的只有系统 acrylic —— 模糊的是窗口后面的桌面。
 
-:root[data-window-glass='on'],
-:root[data-window-glass='on'] body {
-  /* 根元素的底色会传播成整块画布的背景，不透它等于把整面玻璃糊住 */
+   所以玻璃挡位下把正文裁到界面层下方（clip-path）：让未模糊的正文字
+   从顶栏底下穿过去，只会看起来像脏了一条，比裁掉更难看。
+   「关闭」挡位不透明、也不裁，正文照旧从界面层下穿过。
+
+   三个挡位只差三组数字：纸面 / 面板 / 玻璃条的不透明度。 */
+
+/* ── 中等（默认）── */
+:root[data-window-glass='medium'] {
+  --paper-alpha: 88%;
+  --ui-content: rgba(255, 255, 255, 0.86);
+  --ui-chrome: rgba(248, 249, 250, 0.74);
+  --ui-sunken: rgba(238, 240, 242, 0.66);
+  --glass-bg: rgba(var(--glass-rgb), 0.56);
+  --glass-panel: rgba(var(--glass-rgb), 0.9);
+  /* 毛玻璃要「大模糊 + 低不透明度」才像玻璃：模糊不够只是脏 */
+  --glass-blur: blur(26px) saturate(160%);
+}
+
+:root[data-window-glass='medium'][data-theme='dark'] {
+  --ui-content: rgba(28, 31, 36, 0.84);
+  --ui-chrome: rgba(34, 38, 44, 0.72);
+  --ui-sunken: rgba(23, 25, 29, 0.64);
+}
+
+/* ── 强：更透、模糊更明显 ── */
+:root[data-window-glass='strong'] {
+  --paper-alpha: 76%;
+  --ui-content: rgba(255, 255, 255, 0.74);
+  --ui-chrome: rgba(248, 249, 250, 0.58);
+  --ui-sunken: rgba(238, 240, 242, 0.5);
+  --glass-bg: rgba(var(--glass-rgb), 0.38);
+  --glass-panel: rgba(var(--glass-rgb), 0.86);
+  --glass-blur: blur(36px) saturate(180%);
+}
+
+:root[data-window-glass='strong'][data-theme='dark'] {
+  --ui-content: rgba(28, 31, 36, 0.72);
+  --ui-chrome: rgba(34, 38, 44, 0.58);
+  --ui-sunken: rgba(23, 25, 29, 0.5);
+}
+
+/* 根元素的底色会传播成整块画布的背景，不透它等于把整面玻璃糊住 */
+:root[data-window-glass='medium'],
+:root[data-window-glass='medium'] body,
+:root[data-window-glass='strong'],
+:root[data-window-glass='strong'] body {
   background: transparent;
 }
 
-:root[data-window-glass='on'] {
-  --paper-alpha: 84%;
-  --ui-content: rgba(255, 255, 255, 0.8);
-  --ui-chrome: rgba(248, 249, 250, 0.66);
-  --ui-sunken: rgba(238, 240, 242, 0.6);
-  --glass-bg: rgba(var(--glass-rgb), 0.5);
-  --glass-panel: rgba(var(--glass-rgb), 0.88);
-  /* 毛玻璃要「大模糊 + 低不透明度」才像玻璃：模糊不够就只是脏 */
-  --glass-blur: blur(30px) saturate(170%);
-}
-
-:root[data-window-glass='on'][data-theme='dark'] {
-  --ui-content: rgba(28, 31, 36, 0.78);
-  --ui-chrome: rgba(34, 38, 44, 0.64);
-  --ui-sunken: rgba(23, 25, 29, 0.6);
-}
-
-/* 工作区在玻璃模式下必须让出这一层。
-   它和里面的分组/面板都会画半透明底色，两层叠起来透明度是相乘的：
-   0.8 × 0.84 之后只剩 3% 的背景能透出来，玻璃等于白做。
-   面板自己铺满了整块区域，所以这里清空不会露出空白。 */
-:root[data-window-glass='on'] .workspace {
+/* 工作区也必须让出这一层：它和里面的面板各画一层半透明，
+   透明度相乘之后只剩个位数百分比的背景能透出来（0.8 × 0.84 → 3%），玻璃等于白做。 */
+:root[data-window-glass='medium'] .workspace,
+:root[data-window-glass='strong'] .workspace {
   background: transparent;
+}
+
+/* 正文裁到界面层下方：透明窗口里没有 backdrop-filter，
+   不裁的话正文会裸露着从玻璃条下面划过去。zen 下 --top-offset 为 0，等于不裁。 */
+:root[data-window-glass='medium'] .pane-preview,
+:root[data-window-glass='strong'] .pane-preview {
+  clip-path: inset(var(--top-offset) 0 var(--bottom-offset) 0);
+}
+
+/* zen 的界面层是浮在正文上的，没有模糊就更要靠底色压住文字 */
+body.is-zen.zen-top .titlebar,
+body.is-zen.zen-top .tabbar,
+body.is-zen.zen-bottom .statusbar {
+  --glass-bg: rgba(var(--glass-rgb), 0.94);
 }
 
 /* zen 模式本来就是「只剩内容」，纸面再透一点会更通透 */
-:root[data-window-glass='on'] body.is-zen {
-  --paper-alpha: 78%;
+:root[data-window-glass='medium'] body.is-zen {
+  --paper-alpha: 82%;
+}
+
+:root[data-window-glass='strong'] body.is-zen {
+  --paper-alpha: 70%;
 }
 
 /* ══════════════ 英文界面的排版微调 ══════════════

@@ -47,6 +47,7 @@ import {
   clearRecentFiles,
   nextZoom,
   normalizeZoom,
+  normalizeGlass,
 } from './lib/store.js';
 import { DOC_THEME_BY_ID } from './lib/doc-themes.js';
 import { applyFont } from './lib/fonts.js';
@@ -222,8 +223,7 @@ function bindWindowControls() {
  * 少一次可能失败的运行时调用，也少一种状态。
  */
 function applyWindowGlass() {
-  const on = getSettings().windowGlass !== false;
-  document.documentElement.dataset.windowGlass = on ? 'on' : 'off';
+  document.documentElement.dataset.windowGlass = normalizeGlass(getSettings().windowGlass);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1190,9 +1190,13 @@ function applyViewModeButtons(mode) {
 
 const zen = { on: false, fullscreen: false, top: false, left: false, bottom: false };
 
-/** 唤出用的边缘厚度与「停留」判断要用到的两条玻璃的高度 */
-const ZEN_EDGE = 6;
-const ZEN_KEEP = 16;
+/**
+ * zen 的唤出热区：
+ *   ZEN_EDGE —— 指针离窗口边缘多近算「靠近」（原来只有 6px，实际用起来几乎够不着）
+ *   ZEN_KEEP —— 已经唤出后，再往外走多远才收起（迟滞，避免手一抖就闪）
+ */
+const ZEN_EDGE = 28;
+const ZEN_KEEP = 40;
 
 function paintZenButton() {
   const btn = $('btn-zen');

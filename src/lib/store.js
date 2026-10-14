@@ -18,13 +18,26 @@ export const ZOOM_STEPS = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 
 export const ZOOM_MIN = ZOOM_STEPS[0];
 export const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
 
+/** 全屏毛玻璃挡位 */
+export const GLASS_LEVELS = ['off', 'medium', 'strong'];
+
+/**
+ * 玻璃挡位归一化。1.2.0 里这个设置是布尔值（开/关），
+ * 这里把老数据映射成挡位，免得升级后设置直接失效。
+ */
+export function normalizeGlass(value) {
+  if (value === true) return 'medium';
+  if (value === false) return 'off';
+  return GLASS_LEVELS.includes(value) ? value : 'medium';
+}
+
 const DEFAULTS = {
   docTheme: 'plain',          // 正文主题：整套文档视觉（背景/正文/标题/表格/代码块）
   uiDark: null,               // 界面明暗；null = 跟随正文主题的深浅
   viewMode: 'read',           // read | split | edit —— 默认纯阅读，按需切到源码
   tabLayout: 'top',           // top = 顶栏下方一条；left = 正文左侧一列
   locale: 'auto',             // auto = 跟随系统语言（WebView2 的 navigator.language）
-  windowGlass: true,          // 全屏毛玻璃：窗口半透明 + 系统 acrylic 模糊，默认开
+  windowGlass: 'medium',      // 全屏毛玻璃挡位：off | medium | strong（窗口半透明 + 系统 acrylic）
   zoom: 1,                    // 显示缩放系数：正文字号、行宽、编辑区字号都乘以它
   fontSize: 16,               // 基准字号；屏幕上实际显示的是 fontSize × zoom
   lineHeight: 1.9,            // 中文正文默认行高比英文高
@@ -75,6 +88,7 @@ export function loadSettings() {
       if (!Array.isArray(state.recentFiles)) state.recentFiles = [];
       if (!Array.isArray(state.pinnedFiles)) state.pinnedFiles = [];
       state.zoom = normalizeZoom(state.zoom);
+      state.windowGlass = normalizeGlass(state.windowGlass);
     }
   } catch {
     state = { ...DEFAULTS };
