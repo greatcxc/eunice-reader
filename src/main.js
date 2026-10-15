@@ -260,9 +260,7 @@ function bindGroupDom(g) {
   const el = g.el;
   g.dom = {
     tabbar: el.querySelector('.tabbar'),
-    tabrail: el.querySelector('.tabrail'),
     tablist: el.querySelector('.tabbar .tablist'),
-    railTablist: el.querySelector('.tabrail .tablist'),
     tabAdd: [...el.querySelectorAll('.tab-add')],
     editorPane: el.querySelector('.pane-editor'),
     editorHost: el.querySelector('.editor-host'),
@@ -276,8 +274,9 @@ function bindGroupDom(g) {
 /**
  * 新建一个分组。
  *
- * @param {{id?:string, mode?:string, before?:HTMLElement|null}} opts
- *        before 有值时插到该元素之前（拖到左侧 1/4 用得到），否则追加到末尾。
+ * @param {{id?:string, mode?:string, before?:HTMLElement|null, after?:HTMLElement|null}} opts
+ *        before / after 决定插到哪个位置（拖到某一栏的左右两侧用得到），
+ *        都没有就追加到末尾。
  */
 function createGroup(opts = {}) {
   const id = opts.id || `g${++gidSeq}`;
@@ -286,7 +285,7 @@ function createGroup(opts = {}) {
   // 第一个分组用 index.html 里的静态结构（首屏不必再建一次 DOM），
   // 之后的分组克隆它 —— 结构与样式只有一处真相来源。
   let el;
-  if (state.groups.length === 0 && !opts.before) {
+  if (state.groups.length === 0 && !opts.before && !opts.after) {
     el = $('group-g1');
     el.dataset.gid = id;
   } else {
@@ -295,6 +294,7 @@ function createGroup(opts = {}) {
     el.removeAttribute('id');
     el.dataset.gid = id;
     if (opts.before) dom.groups.insertBefore(el, opts.before);
+    else if (opts.after) dom.groups.insertBefore(el, opts.after.nextSibling);
     else dom.groups.appendChild(el);
   }
 
@@ -317,15 +317,15 @@ function createGroup(opts = {}) {
   bindGroupDom(g);
   el.className = `group is-${mode}`;
 
-  // 标签列表的挂载点跟随布局：顶部布局挂 .tabbar，左侧布局挂 .tabrail
   g.dom.tablist.innerHTML = '';
-  g.dom.railTablist.innerHTML = '';
 
   state.groups.push(g);
-  if (opts.before) {
-    // 插到最前面：保持 state.groups 的顺序与 DOM 一致
-    state.groups = [g, ...state.groups.filter((x) => x !== g)];
-  }
+  // state.groups 的顺序必须与 DOM 一致，否则「第几栏」在两边指的是不同的东西。
+  // 插到中间时 push 的顺序就不对了，所以统一按 DOM 顺序重排一次 ——
+  // 三个分栏（左/中/右都能插）之后这条是硬要求，不能再靠 if (before) 特判。
+  state.groups = [...dom.groups.children]
+    .map((node) => state.groups.find((x) => x.el === node))
+    .filter(Boolean);
 
   for (const btn of g.dom.tabAdd) {
     btn.innerHTML = icon('plus', 15);
@@ -338,7 +338,6 @@ function createGroup(opts = {}) {
   el.addEventListener('mousedown', () => setActiveGroup(g), true);
 
   initGroupSplitter(g);
-  applyTabLayout();
   syncGroupChrome();
   return g;
 }
@@ -422,55 +421,55 @@ function baseDirOf(path) {
 /* ------------------------------------------------------------------ */
 
 function renderTabs(g) {
-  for (const list of [g.dom.tablist, g.dom.railTablist]) {
-    list.innerHTML = '';
-    for (const tab of g.tabs) {
-      const name = document.createElement('span');
-      name.className = 'tab-name';
-      name.textContent = tab.title;
+  const list = g.dom.tablist;
+  list.innerHTML = '';
+  for (const tab of g.tabs) {
+    const name = document.createElement('span');
+    name.className = 'tab-name';
+    name.textContent = tab.title;
 
-      const dot = document.createElement('span');
-      dot.className = 'tab-dot';
+    const dot = document.createElement('span');
+    dot.className = 'tab-dot';
 
-      const x = document.createElement('button');
-      x.className = 'tab-x';
-      x.type = 'button';
-      x.title = t('tab.close');
-      x.setAttribute('aria-label', t('tab.closeNamed', { name: tab.title }));
-      x.innerHTML = icon('x', 13);
-      x.addEventListener('click', (e) => {
-        e.stopPropagation();
+    const x = document.createElement('button');
+    x.className = 'tab-x';
+    x.type = 'button';
+    x.title = t('tab.close');
+    x.setAttribute('aria-label', t('tab.closeNamed', { name: tab.title }));
+    x.innerHTML = icon('x', 13);
+    x.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeTab(g, tab.id);
+    });
+
+    const el = document.createElement('div');
+    el.className = `tab${tab.id === g.activeId ? ' is-on' : ''}${tab.dirty ? ' is-dirty' : ''}`;
+    el.dataset.tabId = String(tab.id);
+    // 提示里带上「可拖动」：拖标签换栏/分栏没有任何可见入口，不写出来没人知道
+    el.title = [tab.path || tab.title, t('tab.dragHint')].join('\n');
+    // HTML5 拖放：先走拖拽阈值才进入拖动，点选与中键关闭都不受影响
+    el.draggable = true;
+    el.setAttribute('role', 'tab');
+    el.tabIndex = 0;
+    el.append(dot, name, x);
+    el.addEventListener('click', () => switchToTab(g, tab.id));
+    el.addEventListener('auxclick', (e) => {
+      // 中键关闭：浏览器标签的肌肉记忆
+      if (e.button === 1) {
+        e.preventDefault();
         closeTab(g, tab.id);
-      });
-
-      const el = document.createElement('div');
-      el.className = `tab${tab.id === g.activeId ? ' is-on' : ''}${tab.dirty ? ' is-dirty' : ''}`;
-      el.dataset.tabId = String(tab.id);
-      el.title = tab.path || tab.title;
-      el.setAttribute('role', 'tab');
-      el.tabIndex = 0;
-      el.append(dot, name, x);
-      el.addEventListener('click', () => switchToTab(g, tab.id));
-      el.addEventListener('auxclick', (e) => {
-        // 中键关闭：浏览器标签的肌肉记忆
-        if (e.button === 1) {
-          e.preventDefault();
-          closeTab(g, tab.id);
-        }
-      });
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          switchToTab(g, tab.id);
-        }
-      });
-      list.appendChild(el);
-    }
+      }
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        switchToTab(g, tab.id);
+      }
+    });
+    list.appendChild(el);
   }
   // 当前标签滚进可视区（标签多了以后必须保证「刚打开的那个」看得见）
-  for (const list of [g.dom.tablist, g.dom.railTablist]) {
-    list.querySelector('.tab.is-on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
+  list.querySelector('.tab.is-on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 /** 只更新脏标记，不重建整个标签栏（每次击键都重建会很吵） */
@@ -479,16 +478,6 @@ function paintTabDirty(g) {
   for (const el of g.el.querySelectorAll('.tab')) {
     el.classList.toggle('is-on', Number(el.dataset.tabId) === g.activeId);
     el.classList.toggle('is-dirty', Boolean(tab?.dirty) && Number(el.dataset.tabId) === g.activeId);
-  }
-}
-
-/** 标签布局（顶部 / 左侧）：两个容器都保持渲染，靠 CSS 与 hidden 切换 */
-function applyTabLayout() {
-  const layout = getSettings().tabLayout === 'left' ? 'left' : 'top';
-  document.documentElement.dataset.tabLayout = layout;
-  for (const g of state.groups) {
-    g.dom.tabrail.hidden = layout !== 'left';
-    renderTabs(g);
   }
 }
 
@@ -579,6 +568,67 @@ async function closeTab(g, tabId) {
   syncGroupChrome();
   updateFilename();
   updateStats();
+}
+
+/* ------------------------------------------------------------------ */
+/* 标签在栏之间搬家                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 把一个标签搬到另一栏。
+ *
+ * 这是「同栏两个标签 → 左右分栏」的实现核心：拖动标签落到某一栏的侧档时，
+ * 先建栏再搬标签，走的都是这一条路径。
+ *
+ * 三个必须自己处理的点：
+ *   1. 编辑器是**每栏一个 CodeMirror 实例**，搬之前得先把源栏编辑器的内容
+ *      写回标签（commitEditor），否则正在编辑的那几个字会跟着源栏一起蒸发；
+ *   2. 源栏空了就整栏收掉 —— 这既是「取消分栏」的自然路径，
+ *      也避免留下一个没有任何标签的空壳栏；
+ *   3. 目的栏已经开着同一个文件时不搬（否则同一栏会出现两个指向同一文件的标签），
+ *      直接返回 false，让调用方保持原状。
+ *
+ * @returns {boolean} 是否真的搬动了
+ */
+function moveTabToGroup(from, tabId, to) {
+  if (!from || !to || from === to) return false;
+  const i = from.tabs.findIndex((t) => t.id === tabId);
+  if (i < 0) return false;
+
+  const tab = from.tabs[i];
+  if (tab.path && to.tabs.some((t) => t.path === tab.path)) return false;
+
+  commitEditor(from);
+  const wasActive = from.activeId === tabId;
+  if (wasActive) tab.scrollTop = from.dom.previewPane.scrollTop;
+
+  from.tabs.splice(i, 1);
+  const sourceEmptied = from.tabs.length === 0;
+
+  to.tabs.push(tab);
+  to.activeId = tab.id;
+  setActiveGroup(to);
+  loadTabIntoEditor(to, tab);
+  renderTabs(to);
+  scheduleRender(to, true);
+
+  if (sourceEmptied) {
+    from.activeId = null;
+    removeGroup(from); // 内部会 syncGroupChrome
+  } else {
+    if (wasActive) {
+      // 搬走的是当前标签：源栏落到右邻（没有就落到最后一个）
+      from.activeId = from.tabs[Math.min(i, from.tabs.length - 1)].id;
+      loadTabIntoEditor(from, activeTab(from));
+      scheduleRender(from, true);
+    }
+    renderTabs(from);
+  }
+
+  syncGroupChrome();
+  updateFilename();
+  updateStats();
+  return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1132,6 +1182,20 @@ function applyOutline() {
   const show = getSettings().showOutline;
   dom.outline.hidden = !show;
   $('btn-toggle-outline').classList.toggle('is-on', show);
+  // zen 下大纲显隐直接改变左侧热区的宽度（m.left）。
+  // 不重测的话：进 zen 时大纲是隐藏的，之后 Ctrl+B 打开大纲也永远唤不出抽屉。
+  zen.measure?.();
+  // 大纲占的是内容区左边那一条：拖动过程中开关大纲，落点提示要跟着重画
+  refreshDropTargets();
+}
+
+/** 拖动过程中布局变了（窗口缩放 / 大纲显隐）就按新几何重画落点 */
+function refreshDropTargets() {
+  if (!dragSession.active) return;
+  const target = dragSession.target;
+  buildDropTargets(dragSession.kind);
+  // 重画之后胶囊要重新搬回原来的那一档：否则提示会「亮着但没有字」
+  if (target) paintDropTarget(target);
 }
 
 function initGroupSplitter(g) {
@@ -1224,7 +1288,11 @@ async function setZen(on) {
     zen.top = zen.left = zen.bottom = false;
     document.body.classList.remove('zen-top', 'zen-left', 'zen-bottom');
   } else {
-    // 进入时量一次：顶栏/标签条/侧栏的高度决定「唤出后要停留多久才收起」
+    // 进入时量一次：顶栏/标签条/侧栏的高度决定「唤出后要停留多久才收起」。
+    // 同步量一次是必要的：只靠下面那一帧的话，进 zen 后立刻把指针甩到左边缘
+    // 会读到初始的 m.left = 0，左热区当场失效。getBoundingClientRect 会强制
+    // 布局，类名刚切上去也量得到正确值。rAF 那次留给「布局之后还要再校一次」。
+    zen.measure?.();
     requestAnimationFrame(() => zen.measure?.());
   }
   paintZenButton();
@@ -1253,13 +1321,20 @@ function bindZenReveal() {
   zen.measure = () => {
     if (!zen.on) return m;
     const titlebarH = document.querySelector('.titlebar')?.getBoundingClientRect().height || 0;
-    const tabbarH =
-      getSettings().tabLayout === 'left' ? 0 : document.querySelector('.tabbar')?.getBoundingClientRect().height || 0;
-    const railW =
-      getSettings().tabLayout === 'left' ? document.querySelector('.tabrail')?.getBoundingClientRect().width || 0 : 0;
+    const tabbarH = document.querySelector('.tabbar')?.getBoundingClientRect().height || 0;
     const sideW = dom.outline.hidden ? 0 : dom.outline.getBoundingClientRect().width || 0;
     const statusH = document.querySelector('.statusbar')?.getBoundingClientRect().height || 0;
-    m = { top: titlebarH + tabbarH, left: railW + sideW, bottom: statusH };
+    m = { top: titlebarH + tabbarH, left: sideW, bottom: statusH };
+    // 抽屉宽度交给 CSS：抽屉展开时正文裁到抽屉右侧，抽屉底下变成透明，
+    // 系统 acrylic 直接透上来 —— 透明窗口里没有 backdrop-filter，
+    // 这是抽屉拿到真模糊的唯一路径（见 app.css 玻璃区的 zen-left clip-path）。
+    document.body.style.setProperty('--zen-drawer-w', m.left + 'px');
+    // 大纲收起后左侧已没东西可唤出，把残留的展开态一并清掉，
+    // 免得 zen-left 类还挂着、热区却对着一条空抽屉反复触发。
+    if (!m.left && zen.left) {
+      zen.left = false;
+      document.body.classList.remove('zen-left');
+    }
     return m;
   };
 
@@ -1277,9 +1352,23 @@ function bindZenReveal() {
     else if (zen.top && e.clientY > m.top + ZEN_KEEP) next.top = false;
 
     if (m.left > 0) {
-      if (e.clientX <= ZEN_EDGE) next.left = true;
+      // 顶部那一条（y <= ZEN_EDGE）归顶栏热区：贴着顶边滑向左上角
+      // 去够顶栏按钮时，大纲抽屉不能半路弹出来抢这个角。
+      if (e.clientX <= ZEN_EDGE && e.clientY > ZEN_EDGE) next.left = true;
       else if (zen.left && e.clientX > m.left + ZEN_KEEP) next.left = false;
     }
+
+    // 抽屉展开的这一刻重新量一次：它要把正文裁开（--zen-drawer-w），
+    // 只认进入 zen 时那一次测量的话，中途开关过大纲就会拿到过期宽度。
+    if (next.left && !zen.left) {
+      zen.measure();
+      next.left = m.left > 0; // 大纲收起时本来就没东西可唤出
+    }
+
+    // 左上角的最终归属：抽屉展开后，它占住的这一竖条（含顶部的大纲
+    // 标题和收起按钮）归抽屉 —— 顶栏即使已经唤出也要让开，
+    // 否则标题栏压在收起按钮上，永远点不到。想开顶栏，从抽屉右侧够上去。
+    if (next.top && next.left && e.clientX <= m.left) next.top = false;
 
     if (e.clientY >= h - ZEN_EDGE) next.bottom = true;
     else if (zen.bottom && e.clientY < h - m.bottom - ZEN_KEEP) next.bottom = false;
@@ -1307,79 +1396,343 @@ function bindZenReveal() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 拖放：中间开标签，两侧 1/4 分栏                                     */
+/* 拖放：落点按「栏」划分，不按窗口的 1/4                              */
 /* ------------------------------------------------------------------ */
 
-/** 把物理像素坐标换算成窗口内的逻辑坐标，再判断落在哪一档 */
-function zoneForPosition(position) {
-  const dpr = window.devicePixelRatio || 1;
-  const x = (position?.x ?? 0) / dpr;
-  const w = window.innerWidth || 1;
-  if (x < w * 0.25) return 'left';
-  if (x > w * 0.75) return 'right';
-  return 'tab';
+/**
+ * 分栏上限。
+ *
+ * 三栏是「每栏还能好好读一行中文」的下限（1280px 窗口、大纲展开时每栏约 340px）。
+ * 到顶之后干脆不画分栏档 —— 宁可不提示，也不提示一件自己兑现不了的事。
+ */
+const MAX_GROUPS = 3;
+
+/** 分栏后每一栏至少要有的宽度 */
+const MIN_PANE_WIDTH = 320;
+
+/**
+ * 这一次拖动的状态。
+ *
+ * 原生文件拖入与标签拖动共用同一套落点，区别只在 kind 与松手后兑现的动作：
+ *   file → 打开文件；tab → 搬运标签。
+ */
+const dragSession = { kind: null, fromGid: null, tabId: null, target: null, active: false };
+
+/**
+ * 拖动提示的可用区域 = 内容区。
+ *
+ * `.groups` 自己铺满整窗（顶栏与状态栏是浮在它上面的两条玻璃），所以上下要按那两条裁掉；
+ * 左右不必管 —— 大纲侧栏是 `.groups` 的兄弟节点，`.groups` 的左边界本来就在它右边。
+ *
+ * 上边界量的是标题栏的 **bottom** 而不是写死 46px：zen 里标题栏会滑出视野，
+ * 量出来自然是 0，提示层于是跟着铺到窗口顶 —— 硬编码那个数字在 zen 下会留一条空档。
+ */
+function contentRect() {
+  const box = dom.groups.getBoundingClientRect();
+  const bar = document.querySelector('.titlebar')?.getBoundingClientRect();
+  const bottom = parseFloat(getComputedStyle(document.body).getPropertyValue('--bottom-offset')) || 0;
+  const top = bar ? Math.min(Math.max(box.top, bar.bottom), box.bottom) : box.top;
+  return { left: box.left, top, right: box.right, bottom: Math.max(top, box.bottom - bottom) };
 }
 
-function paintDropZone(zone) {
-  dom.dropOverlay.hidden = false;
-  document.body.classList.add('is-dropping');
-  for (const el of dom.dropOverlay.querySelectorAll('.dz')) {
-    el.classList.toggle('is-target', el.dataset.zone === zone);
-  }
+/** 现在还能不能再开一栏：栏数到顶、或再分下去每栏就太窄了，都不给分栏档 */
+function canSplitNow(box = contentRect()) {
+  if (state.groups.length >= MAX_GROUPS) return false;
+  return box.right - box.left >= MIN_PANE_WIDTH * (state.groups.length + 1);
 }
 
-function hideDropZone() {
-  dom.dropOverlay.hidden = true;
-  document.body.classList.remove('is-dropping');
+/** 一档落点：一块可命中的矩形。文案先存在 dataset 上，命中时才搬到那一档（见 paintDropTarget） */
+function zoneEl(zone, label, origin = false) {
+  const n = document.createElement('div');
+  n.className = `dz dz-${zone}${origin ? ' is-origin' : ''}`;
+  n.dataset.zone = zone;
+  n.dataset.label = label;
+  return n;
 }
 
 /**
- * 按落点打开文件。
- * 左侧 1/4 → 在这一侧开一个分栏（已有分栏就用左边那栏）；右侧同理；中间 → 当前栏的新标签。
+ * 落点胶囊：整层只有这一个，命中哪一档就搬进哪一档。
+ *
+ * 旧写法是「每档各放一个胶囊，用 opacity 切换显隐」—— 三档都写字会互相打架，
+ * 所以只能靠选中态压住另外两个。改成单例搬运之后：节点少一半，
+ * 也不可能出现两份文案同时可见，而且「文本内容」本身就是当前状态，不必再去读样式。
+ */
+let dropLabelEl = null;
+
+/**
+ * 按当前的分栏实况重画落点。
+ *
+ * 每一栏一张卡片，卡片的 left/top/width/height **直接取那一栏的
+ * `getBoundingClientRect()`**，卡片内部再切左 / 中 / 右三档。
+ *
+ * 这样做的关键收益是：提示画在哪、松手会发生什么，出自同一份几何。
+ * 旧版这两件事是各算各的 —— 提示是「窗口宽度三等分」（还 `inset: 0` 盖住了顶栏与大纲），
+ * 判定也是窗口的 1/4；一旦分了栏，中间那一档横跨两栏，看到的和发生的根本对不上。
+ */
+function buildDropTargets(kind) {
+  const box = contentRect();
+  const split = canSplitNow(box);
+  const overlay = dom.dropOverlay;
+
+  overlay.replaceChildren();
+  dropLabelEl = document.createElement('span');
+  dropLabelEl.className = 'dz-label';
+  overlay.style.left = `${box.left}px`;
+  overlay.style.top = `${box.top}px`;
+  overlay.style.width = `${Math.max(0, box.right - box.left)}px`;
+  overlay.style.height = `${Math.max(0, box.bottom - box.top)}px`;
+
+  for (const g of state.groups) {
+    const r = g.el.getBoundingClientRect();
+    const left = Math.max(r.left, box.left);
+    const top = Math.max(r.top, box.top);
+    const right = Math.min(r.right, box.right);
+    const bottom = Math.min(r.bottom, box.bottom);
+
+    const card = document.createElement('div');
+    card.className = 'dz-pane';
+    card.dataset.gid = g.id;
+    card.style.left = `${left - box.left}px`;
+    card.style.top = `${top - box.top}px`;
+    card.style.width = `${Math.max(0, right - left)}px`;
+    card.style.height = `${Math.max(0, bottom - top)}px`;
+
+    // 拖着标签回到自己那一栏：中档要明确写出「松开不会变」，并且不高亮强调色
+    const isOrigin = kind === 'tab' && g.id === dragSession.fromGid;
+    if (isOrigin) card.classList.add('is-origin');
+
+    if (split) {
+      card.appendChild(zoneEl('left', t(kind === 'tab' ? 'drop.tabLeft' : 'drop.fileLeft')));
+    }
+    card.appendChild(
+      zoneEl(
+        'mid',
+        kind !== 'tab' ? t('drop.fileMid') : isOrigin ? t('drop.stay') : t('drop.tabMid'),
+        isOrigin,
+      ),
+    );
+    if (split) {
+      card.appendChild(zoneEl('right', t(kind === 'tab' ? 'drop.tabRight' : 'drop.fileRight')));
+    }
+
+    overlay.appendChild(card);
+  }
+}
+
+/**
+ * 命中判定：拿指针去撞**已经渲染出来的** `.dz` 矩形。
+ *
+ * 不再自己算百分比 —— 视觉与逻辑同源之后，「看到的」与「会发生」不可能再对不上。
+ * 指针不在任何一档里（顶栏、大纲侧栏、状态栏、窗口外）就返回 null：
+ * 文件落到 null 进当前栏，标签落到 null 原地不动（等于取消）。
+ */
+function hitDropTarget(clientX, clientY) {
+  for (const zone of dom.dropOverlay.querySelectorAll('.dz')) {
+    const r = zone.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+      return {
+        gid: zone.parentElement.dataset.gid,
+        zone: zone.dataset.zone,
+        origin: zone.classList.contains('is-origin'),
+      };
+    }
+  }
+  return null;
+}
+
+function paintDropTarget(target) {
+  dragSession.target = target;
+  let hitZone = null;
+  for (const zone of dom.dropOverlay.querySelectorAll('.dz')) {
+    const on =
+      Boolean(target) &&
+      zone.dataset.zone === target.zone &&
+      zone.parentElement.dataset.gid === target.gid;
+    zone.classList.toggle('is-target', on);
+    if (on) hitZone = zone;
+  }
+  if (!dropLabelEl) return;
+  if (hitZone) {
+    dropLabelEl.textContent = hitZone.dataset.label || '';
+    hitZone.appendChild(dropLabelEl);
+  } else {
+    dropLabelEl.remove();
+  }
+}
+
+function showDropOverlay(kind, fromGid = null) {
+  dragSession.kind = kind;
+  dragSession.fromGid = fromGid;
+  dragSession.active = true;
+  dragSession.target = null;
+  buildDropTargets(kind);
+  dom.dropOverlay.hidden = false;
+  document.body.classList.add('is-dropping');
+  document.body.classList.toggle('is-tab-drag', kind === 'tab');
+}
+
+function hideDropOverlay() {
+  dragSession.active = false;
+  dragSession.kind = null;
+  dragSession.fromGid = null;
+  dragSession.target = null;
+  dom.dropOverlay.hidden = true;
+  dom.dropOverlay.replaceChildren();
+  dropLabelEl = null;
+  document.body.classList.remove('is-dropping', 'is-tab-drag');
+}
+
+/**
+ * 兑现落点。
+ *
+ * 侧档 = 在那一栏旁边新开一栏（栏数到顶时侧档根本不会被画出来，所以这里不必再拦）；
+ * 中档 = 进那一栏：文件开成新标签，标签则整条搬过去。
+ * 落在内容区之外（target 为 null）时：文件进当前栏，标签原地不动。
+ *
+ * @param {{gid:string,zone:string}|null} target
+ * @param {{paths?:string[], tabId?:number, fromGid?:string}} payload
+ */
+async function applyDrop(target, payload = {}) {
+  const paneOf = (gid) => state.groups.find((g) => g.id === gid) || null;
+  const anchor = target ? paneOf(target.gid) : null;
+  const sideOf = (pane) => (target.zone === 'left' ? { before: pane.el } : { after: pane.el });
+
+  if (payload.tabId) {
+    const from = paneOf(payload.fromGid);
+    if (!from || !target) return false;
+    if (target.zone === 'mid') return moveTabToGroup(from, payload.tabId, anchor);
+    if (!anchor) return false;
+    return moveTabToGroup(from, payload.tabId, createGroup(sideOf(anchor)));
+  }
+
+  const paths = payload.paths || [];
+  if (!paths.length) return false;
+
+  let to;
+  if (target && target.zone !== 'mid' && anchor) to = createGroup(sideOf(anchor));
+  else if (anchor) to = anchor;
+  else to = activeGroup();
+
+  // 一次拖入多个文件：第一份决定落点，其余依次开成同一栏的标签
+  for (const p of paths) await openPath(p, { group: to });
+  return true;
+}
+
+/**
+ * 在指定一侧新开一栏并打开文件。
+ *
+ * 只是 applyDrop 的一个薄封装（不做落点判定），留给工装与将来可能加的
+ * 「在右侧分栏打开」菜单项用。
  */
 function openAtZone(path, zone) {
   if (!path) return;
-  if (zone === 'tab' || !zone) {
+  if (zone !== 'left' && zone !== 'right') {
     openPath(path, { group: activeGroup() });
     return;
   }
-  let target;
-  if (state.groups.length > 1) {
-    target = zone === 'left' ? state.groups[0] : state.groups[state.groups.length - 1];
-  } else {
-    const current = activeGroup();
-    target = createGroup(zone === 'left' ? { before: current.el } : {});
-    setActiveGroup(target);
-  }
-  openPath(path, { group: target });
+  const anchor = activeGroup();
+  const to = createGroup(zone === 'left' ? { before: anchor.el } : { after: anchor.el });
+  openPath(path, { group: to });
+}
+
+/** 物理像素 → CSS 像素。高 DPI 屏上不除这一下，落点会整体偏出去一大截 */
+function toCss(position) {
+  const dpr = window.devicePixelRatio || 1;
+  return { x: (position?.x ?? 0) / dpr, y: (position?.y ?? 0) / dpr };
 }
 
 /**
- * 把文件拖进窗口即可打开。
+ * 原生拖入（从资源管理器拖文件进来）。
  *
- * 之前写的是 HTML5 的 drag/drop + `file.path`，但 `File.path` 是 Electron
- * 的私有属性，WebView2 里永远是 undefined —— 也就是拖进来完全没反应。
- * 真正可用的是 Tauri 在原生层接管拖放后发出的事件，它直接带文件路径。
+ * 为什么不走 HTML5 的 drag/drop：`File.path` 是 Electron 的私有属性，
+ * WebView2 里永远是 undefined —— 拖进来会完全没反应。
+ * Tauri 在原生层接管后发的事件里直接带路径，这才是可用的那条路。
  */
+function handleNativeDrag(payload) {
+  const p = payload || {};
+  const pt = toCss(p.position);
+
+  if (p.type === 'enter' || p.type === 'over') {
+    if (!dragSession.active || dragSession.kind !== 'file') showDropOverlay('file');
+    paintDropTarget(hitDropTarget(pt.x, pt.y));
+    return;
+  }
+  if (p.type === 'drop') {
+    const target = hitDropTarget(pt.x, pt.y);
+    const paths = p.paths || [];
+    hideDropOverlay();
+    if (paths.length) applyDrop(target, { paths });
+    return;
+  }
+  hideDropOverlay();
+}
+
+/**
+ * 标签拖动：把「同栏两个标签」变成左右分栏的那条路径。
+ *
+ * 用 HTML5 拖放而不是自己撸 pointer 事件：被拖的东西本来就是 DOM 节点，
+ * 浏览器自带的拖影 / 光标 / 起拖阈值都是现成的，也不会和点选、中键关闭打架。
+ * 落点复用上面那套 —— 所以拖动标签时看到的提示与拖文件进来时是同一张图。
+ */
+function bindTabDrag() {
+  dom.groups.addEventListener('dragstart', (e) => {
+    const from = e.target instanceof Element ? e.target.closest('.tab') : null;
+    if (!from) return;
+    // 按在 × 上往外拖不该变成拖标签（那是「关标签」的手势）
+    if (e.target.closest('.tab-x')) {
+      e.preventDefault();
+      return;
+    }
+    const g = state.groups.find((x) => x.el.contains(from));
+    const tabId = Number(from.dataset.tabId);
+    if (!g || !tabId) return;
+
+    dragSession.tabId = tabId;
+    dragSession.fromGid = g.id;
+    // Chromium 里不 setData 就根本不会真的开始拖
+    e.dataTransfer?.setData('text/plain', String(tabId));
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+    from.classList.add('is-dragging');
+    showDropOverlay('tab', g.id);
+  });
+
+  const end = () => {
+    if (!dragSession.tabId && !dragSession.active) return;
+    dragSession.tabId = null;
+    for (const n of dom.groups.querySelectorAll('.tab.is-dragging')) n.classList.remove('is-dragging');
+    hideDropOverlay();
+  };
+  window.addEventListener('dragend', end);
+  // 拖出窗口：没了后续 dragover，不主动收一下提示会一直挂在屏幕上
+  window.addEventListener('dragleave', (e) => {
+    if (dragSession.kind === 'tab' && !e.relatedTarget) paintDropTarget(null);
+  });
+}
+
 async function bindDragDrop() {
   // 浏览器里直接打开（没有 Tauri runtime）时，至少别让拖放变成默认的「打开文件」
-  window.addEventListener('dragover', (e) => e.preventDefault());
-  window.addEventListener('drop', (e) => e.preventDefault());
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (dragSession.kind !== 'tab') return;
+    paintDropTarget(hitDropTarget(e.clientX, e.clientY));
+  });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (dragSession.kind !== 'tab') return;
+    const payload = { tabId: dragSession.tabId, fromGid: dragSession.fromGid };
+    const target = hitDropTarget(e.clientX, e.clientY);
+    hideDropOverlay();
+    applyDrop(target, payload);
+  });
+
+  bindTabDrag();
+
+  // 拖动过程中窗口被缩放：落点要按新几何重画，否则提示会停在旧位置上
+  window.addEventListener('resize', refreshDropTargets);
 
   try {
     const webview = getCurrentWebview();
-    await webview.onDragDropEvent((event) => {
-      const p = event.payload;
-      if (p.type === 'enter' || p.type === 'over') {
-        paintDropZone(zoneForPosition(p.position));
-      } else if (p.type === 'drop') {
-        const zone = zoneForPosition(p.position);
-        hideDropZone();
-        if (p.paths?.length) openAtZone(p.paths[0], zone);
-      } else {
-        hideDropZone();
-      }
-    });
+    await webview.onDragDropEvent((event) => handleNativeDrag(event.payload));
   } catch {
     /* 非 Tauri 环境：忽略 */
   }
@@ -1577,7 +1930,6 @@ async function init() {
     const g1 = createGroup({ mode: getSettings().viewMode });
     state.activeGid = g1.id;
     applyViewModeButtons(g1.mode);
-    applyTabLayout();
     applyOutline();
     syncGroupChrome();
 
@@ -1597,8 +1949,6 @@ async function init() {
           saveSettings({ glassLevel: reason.split(':')[1] });
         } else if (reason.startsWith('font:')) {
           saveSettings({ fontPreset: reason.split(':')[1] });
-        } else if (reason === 'tabLayout') {
-          applyTabLayout();
         } else if (reason === 'windowGlass') {
           applyWindowGlass();
           return; // 只影响底色，不必重跑主题与大纲
@@ -1658,19 +2008,29 @@ async function init() {
         openAtZone,
         openFileDialog,
         setZen,
-        applyTabLayout,
         applyViewMode,
         switchToTab,
         closeTab,
         activeGroup,
         activeTab,
         createGroup,
-        zoneForPosition,
-        paintDropZone,
-        hideDropZone,
+        setActiveGroup,
+        // 拖放与分栏：无头 QA 要能驱动「文件拖入」与「标签拖动」这两条真实路径，
+        // 而不是只调一个画提示的壳。handleNativeDrag 收的就是 Tauri 事件里那个 payload。
+        contentRect,
+        buildDropTargets,
+        hitDropTarget,
+        paintDropTarget,
+        showDropOverlay,
+        hideDropOverlay,
+        applyDrop,
+        moveTabToGroup,
+        handleNativeDrag,
+        dragSession,
         // 语言与窗口玻璃：无头 QA 要能直接驱动
         applyLocale,
         applyWindowGlass,
+        applyOutline,
         getLocale,
       };
     }

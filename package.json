@@ -1,7 +1,7 @@
 {
   "name": "markdown-reader",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "description": "Windows 原生 Markdown 阅读器与轻量编辑器",
   "scripts": {

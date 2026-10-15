@@ -73,10 +73,9 @@
   --titlebar-h: 46px;
   --tabbar-h: 34px;
   --statusbar-h: 26px;
-  --tabrail-w: 208px;
 
   /* 正文要给顶/底这两条玻璃让出多少空间。
-     tab 布局与 zen 只改这两个值，顶栏自身的 height 不受影响 ——
+     zen 模式改这两个值，顶栏自身的 height 不受影响 ——
      否则 zen 里唤出顶栏时它会塌成 0 高，等于唤不出来。 */
   --top-offset: calc(var(--titlebar-h) + var(--tabbar-h));
   --bottom-offset: var(--statusbar-h);
@@ -108,22 +107,6 @@
   --glass-bg: rgba(var(--glass-rgb), 0.98);
   --glass-panel: rgba(var(--glass-rgb), 1);
   --glass-blur: none;
-}
-
-/* ── tab 布局 ──
-   顶部：标签条占一条 34px 的玻璃，正文从它下面滚过去。
-   左侧：标签条变成一列（.tabrail），顶部不再占高度。 */
-:root[data-tab-layout='left'] {
-  --top-offset: var(--titlebar-h);
-}
-
-:root[data-tab-layout='top'] {
-  --tabrail-w: 0px;
-}
-
-/* 顶部布局下整条 .tabbar 让位（它的标签列表挂在 .tabrail 里） */
-:root[data-tab-layout='left'] .tabbar {
-  display: none;
 }
 
 /* ── zen 模式 ──
@@ -929,17 +912,16 @@ body.is-longdoc .pane-preview > .markdown-body > * {
 }
 
 /* ══════════════ 拖放落点 ══════════════
-   拖文件进来时把窗口分成三档：左 1/4 分栏到左侧、中间开新标签、右 1/4 分栏到右侧。
-   三块区域始终都画出来（半透明），鼠标所在的那块加亮 —— 这样「松手会发生什么」
-   在拖动过程中就一直是确定的，而不是等松手才知道。 */
+   位置与尺寸全部由 JS 按当前分栏实况写进 inline style（main.js 的 buildDropTargets），
+   这里只管长相。这样做不是为了省事，而是为了让「提示画在哪」与「松手落到哪」
+   必须出自同一份几何 —— 在 CSS 里再算一遍百分比，就等于把这两件事拆成两套真相，
+   分栏之后必然对不上（旧版就是这样：提示是整窗三等分，还盖住了顶栏和大纲侧栏）。
 
+   结构：每一栏一张 .dz-pane 卡片（位置 = 那一栏的矩形），卡片内按左 / 中 / 右切三档。
+   分栏数到顶或内容区太窄时，侧档根本不会被生成 —— 不画做不到的承诺。 */
 .drop-overlay {
   position: fixed;
-  inset: 0;
   z-index: 95;
-  display: flex;
-  gap: 10px;
-  padding: 10px;
   pointer-events: none;
 }
 
@@ -947,55 +929,75 @@ body.is-longdoc .pane-preview > .markdown-body > * {
   display: none;
 }
 
+body.is-dropping .drop-overlay {
+  backdrop-filter: blur(3px) saturate(130%);
+}
+
+.dz-pane {
+  position: absolute;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+
 .dz {
   position: relative;
-  border: 1px solid transparent;
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  flex: 1 1 0;
+  min-width: 0;
+  /* 虚线 + 极淡的染底：三档始终都画出来（「松手会发生什么」从一开始就是确定的），
+     鼠标所在的那一档再实起来 */
+  border: 1px dashed color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.dz-left,
-.dz-right {
-  flex: 1 1 25%;
-}
-
+/* 中档占一半：两侧各 1/4，与「分栏 / 打开」的语义一一对应 */
 .dz-mid {
-  flex: 1 1 50%;
+  flex: 2 1 0;
 }
 
-/* 鼠标所在的那一档：强调色描边 + 更实的底 + 一点内发光 */
 .drop-overlay .dz.is-target {
+  border-style: solid;
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   box-shadow: inset 0 0 0 1px var(--accent-soft), var(--shadow-md);
 }
 
+/* 拖着标签回到它自己那一栏：特意不高亮强调色 —— 「松开不会变」得看得出来 */
+.drop-overlay .dz.is-origin.is-target {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  box-shadow: none;
+}
+
+/* 落点胶囊：整层只有一个（JS 在命中时把它搬进那一档）。
+   它绝不该常驻显示 —— 三档都写字会互相打架；也不该靠 opacity 切换，
+   单例搬运本身就是「当前是哪一档」的真相。 */
 .dz-label {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  padding: 8px 18px;
+  padding: 7px 16px;
   border-radius: 999px;
   background: var(--ui-chrome);
   color: var(--fg);
   border: 1px solid var(--line-strong);
   box-shadow: var(--shadow-md);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+  pointer-events: none;
 }
 
-/* 只给「选中那一档」显示文案：三块都写字会互相打架 */
-.drop-overlay .dz.is-target .dz-label {
-  opacity: 1;
+/* 标签正在被拖动：原标签淡下去，一眼看出「拿起的是哪一个」 */
+.tab.is-dragging {
+  opacity: 0.45;
 }
 
-body.is-dropping .drop-overlay {
-  backdrop-filter: blur(3px) saturate(130%);
+body.is-tab-drag .tablist {
+  cursor: grabbing;
 }
 
 .empty-keys {
@@ -1146,8 +1148,190 @@ body.settings-open .modal-backdrop {
 }
 
 .modal-body {
-  padding: 4px 20px 28px;
+  /* flex:1 + min-height:0：抽屉是定高的，底部那条「去高级设置」必须常驻，
+     不能跟着内容长度被推下去或挤出可视区 */
+  flex: 1;
+  min-height: 0;
+  padding: 4px 20px 24px;
   overflow-y: auto;
+}
+
+/* ── 抽屉底部：低频项的唯一出口 ──
+   高级设置入口做成常驻横幅，而不是埋在滚到底之后 ——
+   否则「找不到行高在哪」会变成新的问题。 */
+.modal-foot {
+  flex: none;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--ui-chrome);
+}
+
+.adv-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--ui-content);
+  color: var(--fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.adv-entry:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.adv-entry:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.adv-entry-ic {
+  flex: none;
+  display: inline-flex;
+  color: var(--fg-2);
+  transition: color 0.14s ease;
+}
+
+.adv-entry:hover .adv-entry-ic {
+  color: var(--accent);
+}
+
+.adv-entry-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.adv-entry-title {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.adv-entry-sub {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adv-entry-chev {
+  flex: none;
+  display: inline-flex;
+  color: var(--fg-3);
+  transition: transform 0.14s ease, color 0.14s ease;
+}
+
+.adv-entry:hover .adv-entry-chev {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+/* ══════════════ 高级设置（居中模态） ══════════════
+   抽屉只放高频项；行高、正文宽度、玻璃强度、界面语言、文件关联、快捷键
+   这些低频项集中在这里。它是一个真正的模态：居中、有独立遮罩、Esc 先关它
+   再关抽屉 —— 否则一次 Esc 会把底下整只抽屉一起收掉。
+
+   底色用实色 --ui-content 而不是抽屉那种半透明玻璃：抽屉背后是正文，
+   需要「透」来保持边调边看的联系；模态背后是已经打开的面板，读表单控件
+   才是第一位的。 */
+.adv-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(var(--ink-rgb), 0.34);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, visibility 0s linear 0.18s;
+}
+
+/* 用 visibility 而非 display 控制显隐，否则收起的动画会被直接砍掉 */
+.adv-backdrop[hidden] {
+  display: flex !important;
+}
+
+body.advanced-open .adv-backdrop {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.18s ease, visibility 0s;
+}
+
+.adv-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: min(760px, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--ui-content);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transform: translateY(10px) scale(0.985);
+  transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+body.advanced-open .adv-modal {
+  transform: none;
+}
+
+.adv-modal:focus {
+  outline: none;
+}
+
+.adv-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  height: 52px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--ui-chrome);
+}
+
+.adv-title {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.adv-sub {
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adv-body {
+  flex: 1;
+  min-height: 0;
+  padding: 2px 20px 22px;
+  overflow-y: auto;
+}
+
+/* 模态比抽屉宽得多，标签栏就宽一点：英文界面下 "Full-window glass" /
+   "Interface language" 在 76px 里会折成两行，行高被撑得参差不齐。 */
+.adv-body .row-label {
+  width: 108px;
 }
 
 /* ── 分组卡片 ──
@@ -1410,99 +1594,254 @@ body.settings-open .modal-backdrop {
   pointer-events: none;
 }
 
-/* ── 正文主题卡片 ──
-   缩略图用真实中文排版渲染。三处相对旧版的变化：
-   1. 缩略图 78px → 104px：原来和两行文字挤在一起，看不出各主题的差异；
-   2. 选中标记从左下角一个流式对勾，改成右上角浮起的圆形角标 ——
-      旧版 .doc-check 是普通 inline 元素，会被挤在星标旁边导致错位；
-   3. 文字层级拉开：主题名 13px/600，说明 11px，字距放松。 */
-.doc-grid {
-  display: grid;
-  /* minmax 的第一项用 min(100%, 178px)：卡片本身够窄，
-     但 auto-fill 计算轨道数时会先看容器的「最大内容宽度」，
-     在 flex 列里那会退化成单列。配合下面的 min-width:0 才稳定成两列。 */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
-  gap: 9px;
-  width: 100%;
-  min-width: 0;
-  max-height: 460px;
-  overflow-y: auto;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--ui-chrome);
-}
+/* ── 正文主题：大样板 + 小色块 ──
+   旧版是 12 张一样大的预览卡，每张摊到 200px 宽，样张小到读不出差异；
+   更糟的是卡片底部那条界面白底的说明栏紧贴着主题纸面，看上去就像
+   「主题是白的」。现在拆成两层，各自解决一件事：
 
-.doc-card {
-  position: relative;
+   1. .showcase —— 选中的那款给足尺寸（约 384×140），四周是界面自己的
+      衬底色 --ui-sunken。纸面只占中间一块，边界一眼可辨，谁也误认不了。
+      下面再摆一行真实取色的色板：配色这种事，把色值本身摆出来最快。
+   2. .theme-tiles —— 其余主题用色块比色。色块只画「纸面 + 标题条 +
+      正文条 + 强调条 + 引用块」，比色够用，12 款三行排得下，
+      不用在小框里塞一段读不清的字。名字与说明一律落在界面底色上。 */
+.showcase {
   display: flex;
   flex-direction: column;
-  padding: 0;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--ui-content);
-  cursor: pointer;
-  text-align: start;
-  overflow: hidden;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
 }
 
-.doc-card:hover {
-  border-color: var(--line-strong);
-  transform: translateY(-1px);
-}
-
-.doc-card.is-on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-sm);
-}
-
-.doc-preview {
-  height: 104px;
-  overflow: hidden;
-  border-bottom: 1px solid var(--line);
-}
-
-.doc-preview > * {
-  height: 100%;
-}
-
-.doc-meta {
+.show-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-top: 1px solid var(--line);
+  align-items: flex-start;
+  gap: 10px;
 }
 
-.doc-dot {
-  flex: none;
-  width: 13px;
-  height: 13px;
-  border-radius: 4px;
-  border: 1px solid var(--line-strong);
-}
-
-.doc-text {
+.show-text {
   min-width: 0;
 }
 
-.doc-name {
-  font-size: 13px;
+.show-name {
+  font-size: 13.5px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.01em;
 }
 
-.doc-card.is-on .doc-name {
-  color: var(--accent);
+.show-note {
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-3);
 }
 
-.doc-note {
-  font-size: 11px;
+/* 「主题预览」标签：把这块区域的性质写在脸上，而不是让人猜 */
+.show-flag {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-sunken);
   color: var(--fg-3);
-  line-height: 1.45;
-  margin-top: 1px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* 衬底用界面色：它明确告诉用户「这一圈不是主题的颜色」 */
+.show-stage {
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--ui-sunken);
+}
+
+.show-page {
+  height: 142px;
+  overflow: hidden;
+  border-radius: 4px;
+  /* 描边走中性色而不是主题色：纸面与衬底之间需要一条确定的界线 */
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 3px 14px rgba(var(--ink-rgb), 0.2);
+}
+
+.show-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-label {
+  flex: none;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+}
+
+.palette {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sw {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  /* 界面自己的灰，不是主题的 --rule：纸面可能是近白色，在浅底上不能消失。
+     fg-3 在明暗两套里都是中灰，同一个表达式两边都成立。 */
+  border: 1px solid color-mix(in srgb, var(--fg-3) 60%, transparent);
+}
+
+/* ── 主题色块 ──
+   每个色块的取色由 JS 以内联变量注入（--t-paper / --t-ink / …），
+   所以 12 款互不影响，也不需要 12 份 CSS。 */
+.theme-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px 9px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tile-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.theme-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tile-art {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 54px;
+  padding: 8px 9px;
+  border: 1px solid var(--t-rule, var(--line));
+  border-radius: 4px;
+  background: var(--t-paper, var(--ui-content));
+  overflow: hidden;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+
+.theme-tile:hover .tile-art {
+  transform: translateY(-1px);
+}
+
+.theme-tile.is-on .tile-art {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.theme-tile:focus-visible {
+  outline: none;
+}
+
+.theme-tile:focus-visible .tile-art {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.tl {
+  display: block;
+  border-radius: 2px;
+}
+
+.tl-h {
+  width: 46%;
+  height: 5px;
+  background: var(--t-head);
+}
+
+.tl-l {
+  width: 100%;
+  height: 3px;
+  background: var(--t-ink);
+  opacity: 0.42;
+}
+
+.tl-a {
+  width: 40%;
+  height: 3px;
+  background: var(--t-accent);
+}
+
+/* 引用块：用 margin-top:auto 顶到底部，色块之间高度再不一样也不会错位 */
+.tl-q {
+  width: 100%;
+  height: 11px;
+  margin-top: auto;
+  border-radius: 2px 3px 3px 2px;
+  border-left: 2px solid var(--t-quote-bar);
+  background: var(--t-quote);
+}
+
+.tile-name {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-tile.is-on .tile-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 收藏：hover 色块才浮现，避免常驻的视觉噪音（与旧版同一取舍） */
+.tile-star {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--ui-content);
+  box-shadow: var(--shadow-sm);
+  color: var(--fg-3);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s ease, color 0.14s ease;
+}
+
+.tile-wrap:hover .tile-star,
+.tile-star:focus-visible,
+.tile-star.is-on {
+  opacity: 1;
+}
+
+.tile-star:hover {
+  color: var(--fg);
+}
+
+.tile-star.is-on {
+  color: #e3b341;
+}
+
+.tile-star.is-on .ic {
+  fill: currentColor;
 }
 
 /* 快捷键表 */
@@ -1536,23 +1875,25 @@ body.settings-open .modal-backdrop {
 
 /* ── 分类页签 ──
    选中态原来只靠「淡底 + 字重」，在浅色底上几乎看不出差异。
-   现在选中项用强调色实底 + 白字，一眼可辨。 */
+   现在选中项用强调色实底 + 白字，一眼可辨。
+   尺寸压得比较紧：主题页签有 8 个（含「★ 收藏」），480px 的抽屉里必须排成一行，
+   换行会让「收藏」那一档孤零零掉到第二行，看上去像排版事故。 */
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 2px;
   padding: 3px;
   border-radius: var(--r-md);
   background: var(--ui-sunken);
 }
 
 .chip-tab {
-  padding: 5px 11px;
+  padding: 4px 9px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--fg-3);
-  font-size: 12px;
+  font-size: 11.5px;
   white-space: nowrap;
   cursor: pointer;
   transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
@@ -1573,72 +1914,6 @@ body.settings-open .modal-backdrop {
 .chip-tab.is-on:hover {
   background: var(--accent);
   color: var(--accent-fg);
-}
-
-/* 星标与选中勾：星标 hover 卡片才浮现，避免常驻的视觉噪音 */
-.doc-star {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin-inline-start: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--fg-3);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.14s ease, color 0.14s ease, background 0.14s ease;
-}
-
-.doc-card:hover .doc-star,
-.doc-star:focus-visible,
-.doc-star.is-on {
-  opacity: 1;
-}
-
-.doc-star:hover {
-  background: var(--hover);
-  color: var(--fg);
-}
-
-.doc-star.is-on {
-  color: #e3b341;
-}
-
-.doc-star.is-on .ic {
-  fill: currentColor;
-}
-
-/* 选中角标：浮在缩略图右上角。
-   旧版是一个 inline-flex 的对勾，跟着 .doc-meta 的流式布局走，
-   会被星标挤到奇怪的位置；改为绝对定位后与星标彻底解耦。 */
-.doc-check {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 19px;
-  height: 19px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-fg);
-  box-shadow: var(--shadow-sm);
-  opacity: 0;
-  transform: scale(0.7);
-  transition: opacity 0.14s ease, transform 0.14s ease;
-  pointer-events: none;
-}
-
-.doc-card.is-on .doc-check {
-  opacity: 1;
-  transform: scale(1);
 }
 
 /* 字体选择 */
@@ -2114,67 +2389,6 @@ body.settings-open .modal-backdrop {
   color: var(--fg);
 }
 
-/* ── 左侧布局：同一份标签列表竖过来 ── */
-
-.tabrail {
-  flex: none;
-  width: var(--tabrail-w);
-  display: flex;
-  flex-direction: column;
-  margin-top: var(--top-offset);
-  height: calc(100% - var(--top-offset) - var(--bottom-offset));
-  background: var(--ui-chrome);
-  border-right: 1px solid var(--line);
-  overflow: hidden;
-  z-index: 3;
-}
-
-.tabrail[hidden] {
-  display: none;
-}
-
-.tabrail .tab-add {
-  order: -1;
-  align-self: flex-end;
-  margin: 6px 8px 2px;
-}
-
-.tabrail .tablist {
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 1px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 4px 8px 12px;
-}
-
-.tabrail .tab {
-  width: 100%;
-  max-width: none;
-  height: 30px;
-  border-radius: var(--r-sm);
-  padding: 0 6px 0 10px;
-}
-
-.tabrail .tab.is-on {
-  background: var(--accent-soft);
-}
-
-/* 竖排时强调条改到左侧：横排那一条 2px 顶线在竖列表里会像装饰线 */
-.tabrail .tab.is-on::before {
-  content: '';
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: 0;
-  right: auto;
-  width: 2px;
-  height: auto;
-  border-radius: 1px;
-  background: var(--accent);
-}
-
 /* ══════════════ Zen 模式 ══════════════
    点一下「全是内容」：顶栏、标签条、状态栏、侧栏全部让位。
    鼠标靠近窗口边缘时它们再浮出来 —— 浮层用 opacity/transform 淡入，
@@ -2183,8 +2397,7 @@ body.settings-open .modal-backdrop {
 .titlebar,
 .statusbar,
 .tabbar,
-.sidebar,
-.tabrail {
+.sidebar {
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
@@ -2220,9 +2433,8 @@ body.is-zen.zen-bottom .statusbar {
   transform: none;
 }
 
-/* 侧栏与左侧标签栏平时在文档流里，zen 下改成从左边缘滑出的抽屉 */
-body.is-zen .sidebar,
-body.is-zen .tabrail {
+/* 大纲侧栏平时在文档流里，zen 下改成从左边缘滑出的抽屉 */
+body.is-zen .sidebar {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -2234,13 +2446,11 @@ body.is-zen .tabrail {
   transform: translateX(-100%);
 }
 
-body.is-zen .sidebar {
-  left: var(--tabrail-w);
-}
-
-body.is-zen.zen-left .sidebar,
-body.is-zen.zen-left .tabrail {
+body.is-zen.zen-left .sidebar {
   transform: none;
+  /* 展开的抽屉要压在顶栏（z 20）之上：顶栏唤出时不能盖住抽屉顶部，
+     否则「大纲」标题和收起按钮被压在下面点不到。与 JS 里的让位规则配套。 */
+  z-index: 21;
 }
 
 /* zen 下正文已经让开全部空间，再留一条顶栏高度的内边距就白了一块 */
@@ -2448,6 +2658,30 @@ body.is-zen .pane-preview {
   clip-path: inset(var(--top-offset) 0 var(--bottom-offset) 0);
 }
 
+/* zen 抽屉展开时把正文裁到抽屉右侧：抽屉底下不再是纸面而是透明，
+   系统 acrylic 直接透上来 —— 抽屉就和普通模式的侧栏一样是真毛玻璃。
+   （透明窗口里没有 backdrop-filter，见本节开头；这是唯一的模糊来源。）
+   宽度由 zen.measure 量好写进 --zen-drawer-w，随大纲显隐更新。'off' 挡没有 acrylic，不裁。
+
+   两点讲究：
+   1. 只裁**最左那一栏**（:first-child）：分屏时窗口里有多个分组，抽屉只压住左边这个，
+      不限定的话右栏正文的左侧会被一起裁掉一大块；
+   2. 裁 .group-body 而不是 .pane-preview：编辑/分栏视图下左边露出来的是编辑区，
+      统一裁掉才有一致的玻璃观感；而 .tabbar 是 .group-body 的兄弟节点，
+      放在外面才不会被裁 —— 否则顶栏唤出时最左那几个标签会被切掉。 */
+:root[data-window-glass='medium'] body.is-zen.zen-left .groups > .group:first-child .group-body,
+:root[data-window-glass='strong'] body.is-zen.zen-left .groups > .group:first-child .group-body {
+  clip-path: inset(0 0 0 var(--zen-drawer-w, 0px));
+}
+
+/* 裁剪边缘跟着抽屉一起滑（0.16s 与界面层唤出动画同值）。
+   必须先给一个 inset(0) 的初值：clip-path 从 none 变到基本形状是**不可插值**的，
+   离散过渡会在动画中途直接跳一下，纸边看着就是「啪」地一闪。 */
+body.is-zen .group-body {
+  clip-path: inset(0);
+  transition: clip-path 0.16s ease;
+}
+
 /* zen 的界面层是浮在正文上的，没有模糊就更要靠底色压住文字 */
 body.is-zen.zen-top .titlebar,
 body.is-zen.zen-top .tabbar,
@@ -2503,7 +2737,7 @@ body.is-zen.zen-bottom .statusbar {
 }
 
 .outline-list::-webkit-scrollbar-thumb,
-.doc-grid::-webkit-scrollbar-thumb,
+.adv-body::-webkit-scrollbar-thumb,
 .modal-body::-webkit-scrollbar-thumb {
   border-width: 2px;
 }

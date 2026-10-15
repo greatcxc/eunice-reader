@@ -35,7 +35,6 @@ const DEFAULTS = {
   docTheme: 'plain',          // 正文主题：整套文档视觉（背景/正文/标题/表格/代码块）
   uiDark: null,               // 界面明暗；null = 跟随正文主题的深浅
   viewMode: 'read',           // read | split | edit —— 默认纯阅读，按需切到源码
-  tabLayout: 'top',           // top = 顶栏下方一条；left = 正文左侧一列
   locale: 'auto',             // auto = 跟随系统语言（WebView2 的 navigator.language）
   windowGlass: 'medium',      // 全屏毛玻璃挡位：off | medium | strong（窗口半透明 + 系统 acrylic）
   zoom: 1,                    // 显示缩放系数：正文字号、行宽、编辑区字号都乘以它

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light" data-tab-layout="top">
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="UTF-8" />
 <title>shell harness</title>
@@ -53,13 +53,15 @@
   const mr = await import('/src/main.js').then(() => window.__mr);
   if (!mr) throw new Error('__mr 未暴露：入口没有跑起来（?qa=1 丢失？）');
 
-  // 标签布局走真实设置路径；显式传 layout 时只看参数，
-  // 免得被上一次运行留在 localStorage 里的值影响（同一 profile 会复用）
+  // 断言计算样式前必须关掉过渡与动画：过渡进行中的属性读到的是「当前值」，
+  // 而无头环境的动画时钟不推进，会永远停在起始值上 —— 测出来的结论是假的
+  // （正文裁剪、抽屉滑出这类都靠过渡，不关掉会把正确实现误判成没生效）。
+  const noAnim = document.createElement('style');
+  noAnim.textContent = '*,*::before,*::after{transition:none !important;animation:none !important}';
+  document.head.appendChild(noAnim);
+
+  // 标签布局曾经有「左侧一列」这一档，已整个移除；这里只管语言
   const store = await import('/src/lib/store.js');
-  if (q.get('layout')) {
-    store.saveSettings({ tabLayout: q.get('layout') });
-    mr.applyTabLayout();
-  }
   if (q.get('locale')) {
     store.saveSettings({ locale: q.get('locale') });
     mr.applyLocale();
@@ -105,15 +107,26 @@
     await open('D:\\fake\\market.md');
     mr.openAtZone('D:\\fake\\weekly.md', 'left');   // 左侧 1/4：新栏在左边
     await wait(60);
-  } else if (state === 'left-layout') {
+  } else if (state === 'zen-split') {
+    // 分屏 + zen + 大纲抽屉展开：验证正文裁剪只落在最左那一栏
     await open('D:\\fake\\market.md');
-    await open('D:\\fake\\weekly.md');
-    mr.openAtZone('D:\\fake\\long.md', 'right');
-    await wait(50);
-    // 走真实设置路径：改 store 再让入口重新布局
+    mr.openAtZone('D:\\fake\\weekly.md', 'right');
+    await wait(80);
+    // 抽屉里得有东西可唤出，先按真实设置路径把大纲打开
     const { saveSettings } = await import('/src/lib/store.js');
-    saveSettings({ tabLayout: 'left' });
-    mr.applyTabLayout();  } else if (state === 'zen') {
+    saveSettings({ showOutline: true });
+    mr.applyOutline();
+    await mr.setZen(true);
+    await wait(60); // setZen 里已经同步量过一次，这里只等入口把类名/样式铺开
+    // 走真实热区路径：指针停在左边缘 → 抽屉展开（顺带重测 --zen-drawer-w）
+    window.__qaSnap = [];
+    const snap = (tag) => window.__qaSnap.push(tag + '=' + document.body.className.trim().replace(/\s+/g, '.'));
+    snap('pre');
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 8, clientY: 400 }));
+    snap('post');
+    await wait(300);
+    snap('end');
+  } else if (state === 'zen') {
     await open('D:\\fake\\market.md');
     await mr.setZen(true);
     document.body.classList.add('zen-top');       // 模拟鼠标移到顶边
@@ -126,9 +139,106 @@
     const edge = Number(q.get('edge') || 20);
     window.dispatchEvent(new PointerEvent('pointermove', { clientY: edge, clientX: 720, bubbles: true }));
     await wait(80);
-  } else if (state === 'drop') {
-    await open('D:\\fake\\market.md');
-    mr.paintDropZone(q.get('zone') || 'right');    // 模拟拖动中的落点提示
+  } else if (state === 'drop' || state === 'filedrop' || state === 'tabdrop' || state === 'tabdrag') {
+    // ── 拖放：三种驱动方式，从「只画提示」到「走完整的高层事件链路」 ──
+    //   drop     只把提示画出来并按坐标命中（验证视觉与判定同源）
+    //   filedrop 走 handleNativeDrag 的 enter/over/drop（就是 Tauri 回调里那个 payload）
+    //   tabdrop  直接调 applyDrop（搬迁标签的纯逻辑）
+    //   tabdrag  派发真实的 DragEvent，连 bindTabDrag 的接线一起验
+    const paneIndex = Number(q.get('pane') || 0);
+    const zone = q.get('zone') || 'mid';
+    const kind = q.get('kind') || 'file';
+
+    // ?real=1 用真实样例文档（README 截图要的是真东西，不是几行假数据）
+    let P = { a: 'D:\\fake\\market.md', b: 'D:\\fake\\weekly.md', c: 'D:\\fake\\long.md' };
+    if (q.get('real')) {
+      P = { a: 'D:\\samples\\market.md', b: 'D:\\samples\\minutes.md', c: 'D:\\samples\\market.md' };
+      FILES[P.a] = await (await fetch('/samples/' + encodeURIComponent('欧洲市场拓展方案.md'))).text();
+      FILES[P.b] = [
+        '# 渠道与合规会议纪要',
+        '',
+        '**时间**：2026-10-14 ｜ **参会**：市场、法务、供应链',
+        '',
+        '## 结论',
+        '',
+        '1. 德国市场优先，先完成 CE + EN71 准入；',
+        '2. 荷兰可复用同一套认证材料，Q3 再启动；',
+        '3. 包装上的 :warning: 标识必须提前 3 周打样。',
+        '',
+        '> 认证周期是最容易滑期的环节，务必留足缓冲。',
+        '',
+      ].join('\n');
+    }
+
+    // 落点中心的坐标只能等提示画出来才知道 —— 这正是「同一份几何」的好处
+    const centerOf = (pi, z) => {
+      const card = document.querySelectorAll('.dz-pane')[pi];
+      if (!card) return null;
+      const dz = card.querySelector(`.dz[data-zone="${z}"]`);
+      if (!dz) return null;
+      const r = dz.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
+    const asPhysical = (pt) => (pt ? { x: pt.x * (window.devicePixelRatio || 1), y: pt.y * (window.devicePixelRatio || 1) } : null);
+
+    await open(P.a);
+    if (q.get('panes') === '2' || q.get('panes') === '3') {
+      mr.openAtZone(P.b, 'right');
+      await wait(80);
+    }
+    if (q.get('panes') === '3') {
+      mr.openAtZone(P.c, 'right');
+      await wait(80);
+    }
+    // 源栏：默认当前活动栏，可用 from=N 指定（测试「从左边那栏搬到右边那栏」）
+    if (q.get('from') !== null) mr.setActiveGroup(mr.state.groups[Number(q.get('from'))]);
+    const origin = mr.activeGroup();
+    if (q.get('tabs') === '2') await open(P.b); // 同栏两个标签
+    await wait(60);
+    if (state === 'drop') {
+      mr.showDropOverlay(kind, kind === 'tab' ? origin.id : null);
+      await wait(40);
+      const pt = centerOf(paneIndex, zone);
+      window.__qaHit = pt ? mr.hitDropTarget(pt.x, pt.y) : null;
+      mr.paintDropTarget(window.__qaHit);
+    } else if (state === 'filedrop') {
+      mr.showDropOverlay('file');
+      await wait(40);
+      const pt = asPhysical(centerOf(paneIndex, zone));
+      // 侧档在「栏数到顶 / 内容区太窄」时根本不会被生成 —— 那种情况没有坐标可用
+      if (pt) {
+        const paths = (q.get('paths') || 'D:\\fake\\long.md').split(';');
+        mr.handleNativeDrag({ type: 'enter', position: pt });
+        mr.handleNativeDrag({ type: 'over', position: pt });
+        mr.handleNativeDrag({ type: 'drop', position: pt, paths });
+      }
+      await wait(200);
+    } else if (state === 'tabdrop') {
+      const tabId = origin.tabs[origin.tabs.length - 1].id;
+      mr.showDropOverlay('tab', origin.id);
+      await wait(40);
+      const pt = centerOf(paneIndex, zone);
+      const target = pt ? mr.hitDropTarget(pt.x, pt.y) : null;
+      mr.hideDropOverlay();
+      await mr.applyDrop(target, { tabId, fromGid: origin.id });
+      await wait(200);
+    } else {
+      // 真实 DragEvent：起拖 → 移动 → 松手，全程走 bindTabDrag / window 上的 dragover·drop
+      const tabEl = origin.el.querySelectorAll('.tab')[origin.tabs.length - 1];
+      mr.showDropOverlay('tab', origin.id);
+      await wait(40);
+      const pt = centerOf(paneIndex, zone);
+      const dt = new DataTransfer();
+      if (pt) {
+        tabEl.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+        await wait(30);
+        window.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: dt, clientX: pt.x, clientY: pt.y }));
+        await wait(30);
+        window.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt, clientX: pt.x, clientY: pt.y }));
+        window.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+      }
+      await wait(200);
+    }
   } else if (state === 'edit') {
     // 编辑视图会真的把 CodeMirror 载进这一栏：验证每个分组各自的编辑器实例
     await open('D:\\fake\\market.md');
@@ -211,6 +321,18 @@
     await wait(400);
   }
 
+  // ?adv=1 再点真实的「高级设置」入口，走完整入口链路
+  if (q.get('adv')) {
+    document.getElementById('btn-advanced').click();
+    await wait(400);
+  }
+
+  // ?esc=1 按一次 Esc：应当只关掉高级模态，抽屉留着
+  if (q.get('esc')) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await wait(300);
+  }
+
   if (q.get('closetab')) {
     const g = mr.activeGroup();
     const target = q.get('closetab') === 'active' ? mr.activeTab(g) : g.tabs[0];
@@ -218,11 +340,53 @@
     await wait(200);
   }
 
+  // ?badge=1：在左下角钉一块实时状态条。截图看不出「查询参数是什么、命中判定落在哪一档」，
+  // 而这两个信息正是判断截图有效性的前提 —— 顺手也把 label 的 opacity 量出来。
+  if (q.get('badge')) {
+    const badge = document.createElement('div');
+    badge.id = 'qa-badge';
+    badge.style.cssText =
+      'position:fixed;left:8px;bottom:28px;z-index:9999;background:#111;color:#7dfa9b;' +
+      'font:11px/1.5 monospace;padding:5px 9px;border-radius:5px;max-width:70vw;white-space:pre-wrap';
+    document.body.appendChild(badge);
+    const paintBadge = () => {
+      const lb = document.querySelector('.dz-label');
+      const at = (n) => {
+        const r = n.getBoundingClientRect();
+        return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(',');
+      };
+      badge.textContent = [
+        location.search.replace(/^\?/, ''),
+        `groups=${mr.state.groups.length} hit=${window.__qaHit ? window.__qaHit.gid + ':' + window.__qaHit.zone : 'none'}`,
+        'targets=' + ([...document.querySelectorAll('.dz.is-target')].map((d) => d.dataset.zone).join(',') || '-'),
+        `zones=${document.querySelectorAll('.dz').length} labels=${document.querySelectorAll('.dz-label').length}`,
+        lb ? `label=${JSON.stringify(lb.textContent)}.r=${at(lb)}.in=${lb.parentElement.dataset.zone}` : 'label=-',
+      ].join('\n');
+    };
+    paintBadge();
+    setInterval(paintBadge, 250);
+  }
+
   if (q.get('probe')) {
     const gs = mr.state.groups;
     const tabsIn = (g) => g.el.querySelectorAll('.tabbar .tab').length;
     const cs = (el, p) => (el ? getComputedStyle(el)[p] : 'n/a');
     const cv = (p) => getComputedStyle(document.documentElement).getPropertyValue(p).trim();
+    // 拖放断言用：矩形 → "l,t,w,h"，以及两个矩形的相交面积
+    const rectOf = (el) => {
+      if (!el || el.hidden) return 'hidden';
+      const r = el.getBoundingClientRect();
+      return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(',');
+    };
+    const boxOf = (el) => (el && !el.hidden ? el.getBoundingClientRect() : null);
+    const overlap = (a, b) => {
+      const x = boxOf(a);
+      const y = boxOf(b);
+      if (!x || !y) return 'n/a';
+      const w = Math.min(x.right, y.right) - Math.max(x.left, y.left);
+      const h = Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top);
+      return w > 0 && h > 0 ? Math.round(w * h) : 0;
+    };
     const tabbar = document.querySelector('.tabbar');
     const preview = document.querySelector('.pane-preview > .markdown-body');
     document.title = [
@@ -234,16 +398,62 @@
       'onTabs=' + [...document.querySelectorAll('.tabbar .tab.is-on .tab-name')].map((n) => n.textContent).join('|'),
       'dirtyDots=' + document.querySelectorAll('.tab.is-dirty').length,
       'multi=' + document.querySelector('.groups').classList.contains('is-multi'),
-      'tabLayout=' + document.documentElement.dataset.tabLayout,
-      'railHidden=' + document.querySelector('.tabrail').hidden,
       'tabbarH=' + Math.round(tabbar ? tabbar.getBoundingClientRect().height : 0),
       'topOffset=' + cv('--top-offset'),
-      'railW=' + Math.round((document.querySelector('.tabrail') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width),
       'zen=' + document.body.classList.contains('is-zen'),
       'zenTop=' + document.body.classList.contains('zen-top'),
       'zenBottom=' + document.body.classList.contains('zen-bottom'),
+      'zenLeft=' + document.body.classList.contains('zen-left'),
+      'qaSnap=' + ((window.__qaSnap || []).join(' , ') || 'n/a'),
+      'drawerW=' + cv('--zen-drawer-w'),
+      'bodyDrawerW=' + getComputedStyle(document.body).getPropertyValue('--zen-drawer-w').trim(),
+      'outlineHidden=' + document.getElementById('pane-outline').hidden,
+      'outlineW=' + Math.round(document.getElementById('pane-outline').getBoundingClientRect().width),
+      // 分屏 + 抽屉：逐栏量裁剪，验证只有最左那一栏被裁
+      'groupClips=' + [...document.querySelectorAll('.groups > .group')]
+        .map((g) => cs(g.querySelector('.group-body'), 'clipPath'))
+        .join(' // '),
+      'tabbarClips=' + [...document.querySelectorAll('.groups > .group')]
+        .map((g) => cs(g.querySelector('.tabbar'), 'clipPath'))
+        .join(' // '),
       'dropHidden=' + document.getElementById('drop-overlay').hidden,
       'dropTarget=' + [...document.querySelectorAll('.dz.is-target')].map((d) => d.dataset.zone).join(','),
+      // ── 拖放落点：提示层必须只铺内容区，且与真实分栏对齐 ──
+      'dropRect=' + rectOf(document.getElementById('drop-overlay')),
+      'barRect=' + rectOf(document.querySelector('.titlebar')),
+      'sideRect=' + rectOf(document.getElementById('pane-outline')),
+      'dzPanes=' + document.querySelectorAll('.dz-pane').length,
+      'dzZones=' + [...document.querySelectorAll('.dz-pane')]
+        .map((p) => p.dataset.gid + ':' + [...p.querySelectorAll('.dz')].map((d) => d.dataset.zone).join('+'))
+        .join('|'),
+      // 提示层与顶栏/侧栏是否相交（相交就是「盖住了不该盖的地方」）
+      'dzOverBar=' + overlap(document.getElementById('drop-overlay'), document.querySelector('.titlebar')),
+      'dzOverSide=' + overlap(document.getElementById('drop-overlay'), document.getElementById('pane-outline')),
+      'dzOverStatus=' + overlap(document.getElementById('drop-overlay'), document.querySelector('.statusbar')),
+      // 每张卡片必须横向正好覆盖它那一栏、纵向留在栏内（±1px 取整误差）
+      'dzAlignPanes=' + [...document.querySelectorAll('.dz-pane')].every((p) => {
+        const g = mr.state.groups.find((x) => x.id === p.dataset.gid);
+        if (!g) return false;
+        const a = p.getBoundingClientRect();
+        const b = g.el.getBoundingClientRect();
+        return Math.abs(a.left - b.left) <= 1 && Math.abs(a.right - b.right) <= 1 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1;
+      }),
+      'hit=' + (window.__qaHit ? window.__qaHit.gid + ':' + window.__qaHit.zone : 'none'),
+      'dzLabel=' + (() => {
+        const z = document.querySelector('.dz.is-target .dz-label') || document.querySelector('.dz-label');
+        if (!z) return 'none';
+        const s = getComputedStyle(z);
+        const r = z.getBoundingClientRect();
+        return `${JSON.stringify(z.textContent)}.op=${s.opacity}.vis=${s.visibility}.r=${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}.pos=${s.position}.par=${z.offsetParent?.className || 'none'}`;
+      })(),
+      'dzRects=' + [...document.querySelectorAll('.dz')]
+        .map((d) => `${d.dataset.zone}:${rectOf(d)}`)
+        .join(' '),
+      'dzPaneRects=' + [...document.querySelectorAll('.dz-pane')]
+        .map((d) => `${d.dataset.gid}:${rectOf(d)}`)
+        .join(' '),
+      'draggingTabs=' + document.querySelectorAll('.tab.is-dragging').length,
+      'tabTitles=' + mr.state.groups.map((g) => g.tabs.map((t) => t.title).join('+') || '-').join(' // '),
       'emptyState=' + [...document.querySelectorAll('.group.is-empty')].length,
       'previewChars=' + (preview ? preview.textContent.trim().length : 0),
       // 阅读区为什么可能是空的：把几何与颜色一起量出来
@@ -261,7 +471,19 @@
       'locale=' + document.documentElement.dataset.locale,
       'lang=' + document.documentElement.lang,
       'emptyTitle=' + ((document.querySelector('.empty-title') || {}).textContent || '').slice(0, 22),
-      'secTitles=' + [...document.querySelectorAll('.sec-title')].map((n) => n.textContent).join('/').slice(0, 80),
+      'secTitles=' + [...document.querySelectorAll('#settings-body .sec-title')].map((n) => n.textContent).join('/').slice(0, 80),
+      // ── 设置的两级结构 ──
+      'drawerOpen=' + document.body.classList.contains('settings-open'),
+      'drawerHidden=' + document.getElementById('settings-modal').hidden,
+      'advEntry=' + !!document.getElementById('btn-advanced'),
+      'footH=' + Math.round((document.querySelector('.modal-foot')?.getBoundingClientRect().height || 0)),
+      'advOpen=' + document.body.classList.contains('advanced-open'),
+      'advHidden=' + document.getElementById('adv-settings').hidden,
+      'advSecTitles=' + [...document.querySelectorAll('#adv-body .sec-title')].map((n) => n.textContent).join('/').slice(0, 90),
+      'themePageH=' + Math.round((document.querySelector('.show-page')?.getBoundingClientRect().height || 0)),
+      'themeTiles=' + document.querySelectorAll('.theme-tile').length,
+      'themeSwatches=' + document.querySelectorAll('.show-legend .sw').length,
+      'advModalW=' + Math.round((document.querySelector('.adv-modal')?.getBoundingClientRect().width || 0)),
       'zoomRow=' + ((document.querySelector('.row-label') || {}).textContent || ''),
       'winButtons=' + document.querySelectorAll('.win-controls .win-btn').length,
       'winMaxIcon=' + (document.getElementById('btn-win-max')?.innerHTML.includes('rect') ? 'square' : 'other'),

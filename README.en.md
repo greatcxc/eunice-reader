@@ -46,12 +46,14 @@ most of which is fonts.
 
 - **Tabs** — opening a file creates a new tab and switches to it; a file already open in that pane is
   focused instead. Tab titles come from the document **H1**, falling back to the first 16 characters
-- **Split panes** — drop a file on the **left or right quarter** of the window to open it in a pane on
-  that side; drop it in the **middle** to open a tab. While dragging, the window splits into three
-  highlighted zones, so the result is decided *before* you release the mouse
+- **Split panes** — every pane has its own left / centre / right drop zones: the centre opens the file
+  in that pane, a side inserts a **new pane next to it** (three panes max). The hint only covers the
+  content area and each card is placed from that pane's real rectangle, so *what you see is where it lands*
+- **Drag a tab to split** — dragging a tab header onto a pane's side zone splits that pane around it,
+  which is how two tabs in one pane become two side-by-side panes in a single move.
+  Drag the last tab out of a pane and the pane closes itself
 - Every pane keeps its own tab list, view mode and editor instance; a pane closes itself when its last
   tab is closed
-- **Tab layout** — a strip under the toolbar, or a column on the left
 
 ### Display
 
@@ -89,7 +91,8 @@ most of which is fonts.
 - **Single instance** — opening another file focuses the running window and hands the document over
 - **Encoding fallback** — UTF-8 first (BOM aware) → GB18030 → GBK → Big5, with the source shown in the
   status bar
-- **Drag and drop** — middle of the window opens a tab, the outer quarters open a split pane
+- **Drag and drop** — where you drop is where it opens: a pane's centre opens a tab there,
+  a pane's side opens a new pane next to it. Several files at once become several tabs in one pane
 
 ### Performance (all guarded by scripts)
 
@@ -122,9 +125,17 @@ English UI (follows the system language, or set it manually):
 
 ![English UI](docs/qa/app-english.png)
 
-Settings drawer:
+| Drop a file on a pane's side → a new pane appears there | Drag a tab header → split around it |
+|---|---|
+| ![Drop zones](docs/qa/app-drop-zones.png) | ![Drag a tab to split](docs/qa/app-tab-split.png) |
 
-![Settings](docs/qa/app-settings.png)
+Settings come in two levels: the drawer keeps only what you touch day to day
+(theme / font / size), while line height, measure, glass, language, file
+association and shortcuts live under "Advanced settings".
+
+| Settings drawer | Advanced settings |
+|---|---|
+| ![Settings](docs/qa/app-settings.png) | ![Advanced settings](docs/qa/app-settings-advanced.png) |
 
 ## Install
 

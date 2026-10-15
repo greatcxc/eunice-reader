@@ -74,11 +74,17 @@ const RAW = {
   square,
 };
 
-/** 去掉 lucide 的注释头和多余属性，只留干净的 SVG 字符串 */
+/** 去掉 lucide 的注释头和根 <svg> 上的冗余属性，只留干净的 SVG 字符串 */
 function clean(svg) {
   return svg
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\s*(class|width|height)="[^"]*"/g, '')
+    // 只清根 <svg> 上的 class / width / height，两点原因：
+    //   1. 子元素（如 <rect width="18" height="18">）的宽高是图形本身 ——
+    //      一起删掉就成 0×0 空壳，最大化（square）、还原（copy）、
+    //      分屏（columns-2）、导出 PDF（printer）这些图标会整个消失；
+    //   2. 必须用 \s+ 而不是 \s*，否则会从 stroke-width="2" 的中间
+    //      匹配到 width="2"，留下一个残破的 stroke- 属性。
+    .replace(/<svg\b[^>]*>/, (tag) => tag.replace(/\s+(?:class|width|height)="[^"]*"/g, ''))
     .trim();
 }
 

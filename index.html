@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light" data-tab-layout="top">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -69,12 +69,6 @@
             </div>
 
             <div class="group-body">
-              <!-- 左侧 tab 布局：整列标签 -->
-              <aside class="tabrail" hidden>
-                <div class="tablist"></div>
-                <button class="tab-add" type="button" data-i18n-tip="tab.open" aria-label="Open file"></button>
-              </aside>
-
               <section class="pane-editor">
                 <div class="editor-host"></div>
               </section>
@@ -128,26 +122,53 @@
     <!-- 设置打开时的轻量遮罩：点它关闭抽屉 -->
     <div class="drawer-scrim" id="drawer-scrim" hidden></div>
 
-    <!-- ── 设置抽屉（右侧，不遮挡文档） ── -->
+    <!-- ── 设置抽屉（右侧，不遮挡文档） ──
+         只放高频项：主题、字体、字号、缩放、最近打开。
+         低频项（行高/行宽/玻璃/语言/关联/快捷键）在下面的高级模态里。 -->
     <div class="modal-backdrop" id="settings-modal" hidden>
       <div class="modal" role="dialog" aria-modal="true" data-i18n-aria="set.title">
         <div class="modal-head">
           <span class="modal-title" data-i18n="set.title">设置</span>
+          <span class="modal-sub" data-i18n="set.sub">改完立刻能在文档里看到</span>
           <span class="spacer"></span>
-          <button class="ic-btn" id="btn-settings-close" data-i18n-tip="set.close" aria-label="Close settings"></button>
+          <button class="ic-btn" id="btn-settings-close" data-i18n-tip="set.close" data-i18n-aria="set.close" aria-label="关闭 · Esc"></button>
         </div>
         <div class="modal-body" id="settings-body"></div>
+        <!-- 抽屉底部的唯一出口：低频项全在模态里，不占第一屏 -->
+        <div class="modal-foot">
+          <button class="adv-entry" id="btn-advanced" type="button">
+            <span class="adv-entry-ic" id="adv-entry-ic" aria-hidden="true"></span>
+            <span class="adv-entry-text">
+              <span class="adv-entry-title" data-i18n="set.advanced">高级设置</span>
+              <span class="adv-entry-sub" data-i18n="set.advanced.desc">排版、窗口、文件集成与快捷键</span>
+            </span>
+            <span class="adv-entry-chev" id="adv-entry-chev" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 高级设置（居中模态） ──
+         抽屉里放不下的低频项集中在这里。它是一个真正的模态：居中、有独立遮罩、
+         Esc 先关它再关抽屉。 -->
+    <div class="adv-backdrop" id="adv-settings" hidden>
+      <div class="adv-modal" role="dialog" aria-modal="true" aria-labelledby="adv-title" tabindex="-1">
+        <div class="adv-head">
+          <span class="adv-title" id="adv-title" data-i18n="set.advanced">高级设置</span>
+          <span class="adv-sub" data-i18n="set.advanced.sub">这些项一年也调不了一次，所以不占第一屏。</span>
+          <span class="spacer"></span>
+          <button class="ic-btn" id="btn-adv-close" data-i18n-tip="set.close" data-i18n-aria="set.close" aria-label="关闭 · Esc"></button>
+        </div>
+        <div class="adv-body" id="adv-body"></div>
       </div>
     </div>
 
     <!-- ── 拖放落点提示 ──
-         三块区域：左 1/4 分栏到左侧、中间开新标签、右 1/4 分栏到右侧。
-         鼠标靠近窗口边缘时才出现，颜色深浅表示「现在是哪一档」。 -->
-    <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
-      <div class="dz dz-left" data-zone="left"><span class="dz-label" data-i18n="drop.left">在左侧分栏打开</span></div>
-      <div class="dz dz-mid" data-zone="tab"><span class="dz-label" data-i18n="drop.tab">在新标签页打开</span></div>
-      <div class="dz dz-right" data-zone="right"><span class="dz-label" data-i18n="drop.right">在右侧分栏打开</span></div>
-    </div>
+         内容由 JS 按当前分栏实况生成（见 main.js 的 buildDropTargets）：每一栏一张卡片，
+         卡片位置直接取那一栏的 getBoundingClientRect()，卡片内再切左 / 中 / 右三档。
+         所以这里不放静态结构 —— 静态结构一旦与真实分栏对不上，就会出现
+         「提示在 A、松手落到 B」。提示层只铺内容区：不含顶栏、大纲侧栏与状态栏。 -->
+    <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true"></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

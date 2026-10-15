@@ -41,19 +41,40 @@
   <div class="modal" role="dialog" aria-modal="true" aria-label="设置">
     <div class="modal-head">
       <span class="modal-title">设置</span>
-      <span class="modal-sub">改完立刻能看到</span>
+      <span class="modal-sub">改完立刻能在文档里看到</span>
       <span class="spacer"></span>
       <button class="ic-btn" id="btn-settings-close" aria-label="关闭设置"></button>
     </div>
     <div class="modal-body" id="settings-body"></div>
+    <div class="modal-foot">
+      <button class="adv-entry" id="btn-advanced" type="button">
+        <span class="adv-entry-ic" id="adv-entry-ic" aria-hidden="true"></span>
+        <span class="adv-entry-text">
+          <span class="adv-entry-title">高级设置</span>
+          <span class="adv-entry-sub">排版、窗口、文件集成与快捷键</span>
+        </span>
+        <span class="adv-entry-chev" id="adv-entry-chev" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="adv-backdrop" id="adv-settings" hidden>
+  <div class="adv-modal" role="dialog" aria-modal="true" aria-labelledby="adv-title" tabindex="-1">
+    <div class="adv-head">
+      <span class="adv-title" id="adv-title">高级设置</span>
+      <span class="adv-sub">这些项一年也调不了一次，所以不占第一屏。</span>
+      <span class="spacer"></span>
+      <button class="ic-btn" id="btn-adv-close" aria-label="关闭高级设置"></button>
+    </div>
+    <div class="adv-body" id="adv-body"></div>
   </div>
 </div>
 
 <script type="module">
-  const { renderSettings } = await import('/src/ui/settings.js');
+  const { renderSettings, renderAdvanced } = await import('/src/ui/settings.js');
   const { loadSettings } = await import('/src/lib/store.js');
   const { icon } = await import('/src/ui/icons.js');
-  document.getElementById('btn-settings-close').innerHTML = icon('x', 16);
+  const { setLocale, applyStaticI18n } = await import('/src/lib/i18n.js');
 
   const q = new URLSearchParams(location.search);
 
@@ -69,6 +90,7 @@
         ],
         zoom: 1.25,
         autoSave: true,
+        starredThemes: ['ricepaper', 'nightfall'],
       }));
     } catch (e) {}
     location.replace(location.pathname + '?seeded=1&probe=1');
@@ -76,6 +98,19 @@
 
   // settings 模块内部持有 state，必须显式 load 一次才会读到 localStorage
   loadSettings();
+
+  // ?locale=en-US 走英文界面（核对双语下的面板与高级模态）
+  if (q.get('locale')) {
+    setLocale(q.get('locale'));
+    // 真机上 applyLocale() 会一并重刷静态文案；这里同样做，否则骨架里的
+    // 标题/页脚还是中文，截图会得到一份半中半英的面板
+    applyStaticI18n();
+  }
+
+  document.getElementById('btn-settings-close').innerHTML = icon('x', 16);
+  document.getElementById('btn-adv-close').innerHTML = icon('x', 16);
+  document.getElementById('adv-entry-ic').innerHTML = icon('settings', 16);
+  document.getElementById('adv-entry-chev').innerHTML = icon('chevron-right', 15);
 
   // 假的状态：让「文件关联」分区按真实样子渲染（真机上是 Rust 读注册表）
   const fakeAssoc = {
@@ -86,27 +121,32 @@
     iconOk: true,
   };
 
-  renderSettings(
-    document.getElementById('settings-body'),
-    () => {},
-    {
-      onOpenRecent: () => {},
-      onOpenFile: () => {},
-      onPin: () => {},
-      onUnpin: () => {},
-      onRemoveRecent: () => {},
-      onClearRecent: () => {},
-      onZoom: () => {},
-      readAssocStatus: () => Promise.resolve(fakeAssoc),
-      fixAssociation: () => Promise.resolve(fakeAssoc),
-      openDefaultAppsSettings: () => Promise.resolve(true),
-    },
-  );
+  const actions = {
+    onOpenRecent: () => {},
+    onOpenFile: () => {},
+    onPin: () => {},
+    onUnpin: () => {},
+    onRemoveRecent: () => {},
+    onClearRecent: () => {},
+    onZoom: () => {},
+    readAssocStatus: () => Promise.resolve(fakeAssoc),
+    fixAssociation: () => Promise.resolve(fakeAssoc),
+    openDefaultAppsSettings: () => Promise.resolve(true),
+  };
+
+  renderSettings(document.getElementById('settings-body'), () => {}, actions);
+  renderAdvanced(document.getElementById('adv-body'), () => {}, actions);
 
   // 直接打开抽屉（绕过按钮），方便截图
   document.body.classList.add('settings-open');
   document.getElementById('settings-modal').hidden = false;
   document.getElementById('drawer-scrim').hidden = false;
+
+  // ?adv=1 打开高级模态
+  if (q.get('adv')) {
+    document.body.classList.add('advanced-open');
+    document.getElementById('adv-settings').hidden = false;
+  }
 
   // ?dark=1 走深色界面（验证深色底抬高后的观感）
   if (q.get('dark')) {
@@ -120,52 +160,87 @@
     body.scrollTop = Number(q.get('scroll'));
   }
 
+  // ?ascroll=N 滚高级模态正文
+  if (q.get('ascroll')) {
+    document.getElementById('adv-body').scrollTop = Number(q.get('ascroll'));
+  }
+
   // ?fgrid=N 滚字体网格内部，查看新增字体卡片
   if (q.get('fgrid')) {
     const g = document.querySelector('.font-grid');
     if (g) g.scrollTop = Number(q.get('fgrid'));
   }
 
+  // ?tile=N 选中第 N 个主题色块（验证大样板会跟着换）
+  if (q.get('tile')) {
+    const list = document.querySelectorAll('.theme-tile');
+    list[Number(q.get('tile'))]?.click();
+  }
+
   // ?probe=1 时把实测尺寸写进标题，用 --dump-dom 读回来核对布局。
   // 等一拍再量：文件关联状态是异步读回来的，不等的话只会量到「正在检查…」
   if (q.get('probe')) {
     await new Promise((r) => setTimeout(r, 120));
-    const g = document.querySelector('.doc-grid');
-    const c = document.querySelector('.doc-card');
-    const s = document.querySelector('.sec');
+    // 自定义属性要用 getPropertyValue 读：getComputedStyle(el)['--x'] 永远是 undefined
+    const cs = (el, p) => {
+      if (!el) return 'n/a';
+      const style = getComputedStyle(el);
+      const v = style[p];
+      if (v !== undefined && v !== '') return v;
+      return style.getPropertyValue(p).trim() || 'n/a';
+    };
+    const box = (el) => (el ? el.getBoundingClientRect() : { width: 0, height: 0 });
+    const drawerEl = document.querySelector('.modal');
+    const showcase = document.querySelector('.showcase');
+    const stage = document.querySelector('.show-stage');
+    const page = document.querySelector('.show-page');
+    const tilesEl = document.querySelector('.theme-tiles');
+    const firstTile = document.querySelector('.theme-tile .tile-art');
     const sl = document.querySelector('.slider input');
     const bm = document.querySelector('.box-mark');
     const chips = document.querySelector('.chip-tab.is-on');
-    const cs = (el, p) => (el ? getComputedStyle(el)[p] : 'n/a');
+    const foot = document.querySelector('.modal-foot');
+    const advModal = document.querySelector('.adv-modal');
     document.title = [
-      'drawer=' + Math.round(document.querySelector('.modal').getBoundingClientRect().width),
-      'gridW=' + Math.round(g.getBoundingClientRect().width),
-      'tracks=' + cs(g, 'gridTemplateColumns').split(' ').length,
-      'cardW=' + Math.round(c.getBoundingClientRect().width),
+      'drawer=' + Math.round(box(drawerEl).width),
+      'bodyScroll=' + Math.round(document.getElementById('settings-body').scrollHeight),
+      'footH=' + Math.round(box(foot).height),
+      'advEntry=' + !!document.getElementById('btn-advanced'),
+      'showcaseW=' + Math.round(box(showcase).width),
+      'stageW=' + Math.round(box(stage).width),
+      'pageH=' + Math.round(box(page).height),
+      'swatches=' + document.querySelectorAll('.show-legend .sw').length,
+      'tiles=' + document.querySelectorAll('.theme-tile').length,
+      'tileCols=' + cs(tilesEl, 'gridTemplateColumns').split(' ').length,
+      'tileW=' + Math.round(box(firstTile).width),
+      'tileH=' + Math.round(box(firstTile).height),
+      'tileOn=' + (document.querySelector('.theme-tile.is-on .tile-name') || {}).textContent,
+      // aria-* 必须真的是属性才算数：el() 若用属性赋值，这里会是 none
+      'starAria=' + (document.querySelector('.tile-star')?.getAttribute('aria-label') || 'none'),
+      'tileAriaPressed=' + (document.querySelector('.theme-tile')?.getAttribute('aria-pressed') || 'none'),
+      'showName=' + (document.querySelector('.show-name') || {}).textContent,
       'fontTracks=' + cs(document.querySelector('.font-grid'), 'gridTemplateColumns').split(' ').length,
       'sliderPct=' + (sl ? sl.style.getPropertyValue('--pct') : 'n/a'),
-      'boxMark=' + (bm ? Math.round(bm.getBoundingClientRect().width) : 'n/a'),
+      'boxMark=' + (bm ? Math.round(box(bm).width) : 'n/a'),
       'chipOn=' + cs(chips, 'backgroundColor'),
-      'sections=' + document.querySelectorAll('.sec').length,
-      'rows=' + document.querySelectorAll('.row').length,
-      'boxes=' + document.querySelectorAll('.box').length,
+      'drawerSections=' + document.querySelectorAll('#settings-body .sec').length,
+      'drawerSecTitles=' + [...document.querySelectorAll('#settings-body .sec-title')].map((e) => e.textContent).join('/'),
+      'rows=' + document.querySelectorAll('#settings-body .row').length,
+      'boxes=' + document.querySelectorAll('#settings-body .box').length,
       'recent=' + document.querySelectorAll('.recent-item').length,
-      // 最近打开置顶 + 固定/清除
-      'firstSec=' + (document.querySelector('.sec .sec-title') || {}).textContent,
+      'lastSec=' + ([...document.querySelectorAll('#settings-body .sec-title')].pop() || {}).textContent,
       'pinned=' + document.querySelectorAll('.recent-row.is-pinned').length,
-      'rpin=' + document.querySelectorAll('.recent-item .rpin').length,
-      'rbtn=' + document.querySelectorAll('.recent-item .rbtn, .ractions .rbtn').length,
-      'zoomRow=' + (document.querySelector('.row-label') || {}).textContent,
-      'zoomVal=' + (document.querySelector('.row .row-value') || {}).textContent,
+      'advSections=' + document.querySelectorAll('#adv-body .sec').length,
+      'advSecTitles=' + [...document.querySelectorAll('#adv-body .sec-title')].map((e) => e.textContent).join('/'),
+      'advRows=' + document.querySelectorAll('#adv-body .row').length,
+      'advModalW=' + Math.round(box(advModal).width),
       'assocState=' + ((document.querySelector('.assoc-state') || {}).textContent || '').slice(0, 40),
       'htmlTheme=' + document.documentElement.dataset.theme,
       'glass=' + document.documentElement.dataset.glass,
-      'bodyBg=' + cs(document.body, 'backgroundColor'),
       'chrome=' + cs(document.documentElement, '--ui-chrome'),
       'fg=' + cs(document.documentElement, '--fg'),
-      'scrollTop=' + Math.round(document.getElementById('settings-body').scrollTop),
-      'boxChecked=' + [...document.querySelectorAll('.box input')].map((b) => (b.checked ? 1 : 0)).join(''),
-      'selValue=' + (document.querySelector('.sel select') || {}).value,
+      'boxChecked=' + [...document.querySelectorAll('#adv-body .box input')].map((b) => (b.checked ? 1 : 0)).join(''),
+      'selValue=' + (document.querySelector('#adv-body .sel select') || {}).value,
       'q=' + location.search,
     ].join(' | ');
   }
