@@ -5,6 +5,9 @@
 - **侦察时间**：2026-10-14 10:00 – 10:12 (Asia/Hong_Kong)
 - **仓库根目录**：`D:\Eunice-Reader`
 - **结论一句话**：**本机现在不能**执行 `npm run tauri:build`。唯一缺失项是 **Rust 工具链（rustup / cargo / rustc）**；WebView2、MSVC、Windows SDK、Node、前端依赖全部已就绪，补齐 Rust 后即可完整构建。
+- **2026-10-16 复核**：Rust 已补齐，`npm run tauri:build` **实测成功**，产物
+  `src-tauri/target/release/bundle/nsis/Eunice Reader_1.2.3_x64-setup.exe`（59.33 MB，
+  SHA256 `3DC8133B…225214`）。详见文末「9. 复核记录」。
 
 ---
 
@@ -12,7 +15,7 @@
 
 | 检查项 | 状态 | 证据类型 |
 |---|---|---|
-| Rust（cargo/rustc/rustup） | ❌ **完全不存在** | 实测（全盘扫描 + `tauri info`） |
+| Rust（cargo/rustc/rustup） | ❌ **完全不存在**（2026-10-16 已补齐：cargo/rustc 1.99.0） | 实测（全盘扫描 + `tauri info`） |
 | WebView2 Runtime | ✅ 155.0.4283.45 | 实测（注册表 + 文件 + `tauri info`） |
 | MSVC C++ 工具链（cl.exe/link.exe） | ✅ VS 2022 Community 17.6.4，MSVC 14.34/14.36 | 实测（vswhere + 文件） |
 | Windows SDK | ✅ 10.0.20348.0 / 10.0.22000.0 | 实测（注册表 + 文件树） |
@@ -26,6 +29,7 @@
 | 代理环境变量（cargo/rustup 用） | ✅ 全部未设置，无 `~/.cargo/config` | 实测 |
 
 **能否完整构建 `npm run tauri:build`：不能（缺少 Rust 工具链）。**
+> 2026-10-16 复核：**现在可以**，且已实测产出安装包。见文末「9. 复核记录」。
 
 ---
 
@@ -882,3 +886,39 @@ npm run tauri:build                      # 完整 NSIS 安装包构建
 # 产物：src-tauri\target\release\eunice-reader.exe
 #       src-tauri\target\release\bundle\nsis\*.exe
 ```
+
+---
+
+## 9. 复核记录 — 2026-10-16（Rust 补齐后的实测）
+
+上面第 3、5.4 节的「不能构建」已过期：Rust 工具链后来装上了，本次**真的构建了一次**。
+
+| 项目 | 实测值 |
+|---|---|
+| rustup 工具链 | `stable-x86_64-pc-windows-msvc`（`~/.rustup/toolchains/…`） |
+| cargo / rustc | **1.99.0** |
+| `.cargo\bin` | 全部是指向 `rustup.exe` 的符号链接（`Get-ChildItem` 长度为 0 是正常的） |
+| 构建命令 | `npm run tauri:build`（PATH 里补 `C:\Users\great\.cargo\bin`） |
+| 前端构建 | vite 8.3.4，2283 modules，`index-BqatJnJm.js` 298.0 KB / `index-C5AXW8JY.css` 50.7 KB |
+| Rust 编译 | release profile，**1m 40s** |
+| 可执行文件 | `src-tauri\target\release\eunice-reader.exe`（60.93 MB） |
+| **安装包** | **`src-tauri\target\release\bundle\nsis\Eunice Reader_1.2.3_x64-setup.exe`（59.33 MB）** |
+| SHA256 | `3DC8133B75EF5E875F70C9CC8D97417014DBF6C44C885C66242AC7BFCD225214` |
+| 版本资源 | FileVersion / ProductVersion = `1.2.3`，ProductName = `Eunice Reader` |
+
+**§4.3 那个「推断的风险」不成立**：普通 PowerShell（没有跑 `vcvars64`、`link.exe` 不在 PATH）里
+直接构建成功 —— `cc`/`rustc` 会自己按注册表把 MSVC 找出来，不需要 Developer Prompt。
+第 4.3 节与第 6 节对照表里的对应行可以按此作废。
+
+**NSIS 确实是首次自动下载的**（`%LOCALAPPDATA%\tauri`），下载后即缓存，与推断一致。
+
+**产物内容如何核验**：前端资源在 exe 里是压缩后内嵌的，直接搜字符串搜不到；
+有效做法是对比**资源清单里的哈希文件名**——`dist/assets/index-BqatJnJm.js` 与
+`index-C5AXW8JY.css` 都在 exe 里，而上一版构建的 `index-C0y5kvK4.js` 已不存在。
+再往前一步：这两个文件在 `dist/` 里确实含有本次新增的 CSS 类与文案
+（`.dz-pane` / `.adv-backdrop` / `.theme-tiles` / 「这一栏打开」/「留在原处」），
+于是「源码 → dist → 安装包」这条链是闭合的。
+
+**安装包未签名**（没有代码签名证书），Windows SmartScreen 首次运行会提示「未知发布者」——
+这是预期，不是构建失败。
+
